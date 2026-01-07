@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="MemeForge - Free online meme generator. Create memes with popular templates, add custom text, and download without watermarks.">
+    <title>MemeForge - Free Meme Generator</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+    <style>body { background: #1a1a1a; }</style>
+</head>
+<body>
+    <header class="header">
+        <div class="header-content">
+            <a href="index.html" class="logo">
+                <span class="logo-icon">🔥</span>
+                <span>MemeForge</span>
+            </a>
+            <nav class="nav-menu">
+                <a href="templates.html" class="nav-btn">
+                    <span>📚</span> Templates
+                </a>
+                <button class="nav-btn primary" id="nav-create-btn">
+                    <span>✨</span> Create Meme
+                </button>
+            </nav>
+        </div>
+    </header>
+
+    <main class="main-container">
+        <section class="editor-section">
+            <div class="editor-header">
+                <h1 class="editor-title">Meme Generator</h1>
+                <div class="editor-toolbar">
+                    <button class="toolbar-btn" id="add-text-btn" title="Add Text Box">
+                        <span>➕</span> Add Text
+                    </button>
+                    <button class="toolbar-btn" id="play-pause-btn" title="Play/Pause GIF" style="display: none;">
+                        <span>▶️</span> Play
+                    </button>
+                    <button class="toolbar-btn" id="spacing-btn" title="Adjust Spacing">
+                        <span>↔️</span> Spacing
+                    </button>
+                    <button class="toolbar-btn" id="draw-btn" title="Draw on Meme">
+                        <span>✏️</span> Draw
+                    </button>
+                </div>
+            </div>
+
+            <div class="canvas-container" id="canvas-container">
+                <div class="canvas-wrapper" id="canvas-wrapper">
+                    <canvas id="meme-canvas"></canvas>
+                    <div class="text-boxes-overlay" id="text-boxes-overlay"></div>
+                </div>
+                <div class="canvas-placeholder" id="canvas-placeholder">
+                    <div style="font-size: 4rem; margin-bottom: 1rem;">🖼️</div>
+                    <p>Select a template or upload your own image</p>
+                </div>
+            </div>
+        </section>
+
+        <aside class="controls-panel">
+            <div class="panel-section">
+                <div class="upload-area" id="upload-area">
+                    <div style="font-size: 2rem; margin-bottom: 0.5rem;">📤</div>
+                    <p>Upload new template</p>
+                    <input type="file" id="upload-input" accept="image/*">
+                </div>
+            </div>
+
+            <div class="panel-section">
+                <h3 class="panel-title">Templates</h3>
+                <div class="template-tabs" id="template-tabs">
+                    <button class="tab-btn active" data-category="popular">🔥 Popular</button>
+                    <button class="tab-btn" data-category="classic">⭐ Classic</button>
+                    <button class="tab-btn" data-category="gif">🎬 GIFs</button>
+                    <button class="tab-btn" data-category="recent">🆕 Recent</button>
+                </div>
+                <div class="template-search">
+                    <input type="text" id="template-search" placeholder="Search templates...">
+                </div>
+                <div class="template-grid" id="template-grid"></div>
+                <button class="btn btn-secondary load-more-btn" id="load-more-btn" style="display: none; margin-top: 0.5rem;">
+                    Load More Templates
+                </button>
+            </div>
+
+            <div class="panel-section" id="text-controls">
+                <h3 class="panel-title">Selected Text Box</h3>
+                <p class="no-selection-hint" id="no-selection-hint">Click a text box to edit it</p>
+                <div class="selected-text-controls" id="selected-text-controls" style="display: none;">
+                    <div class="text-input-group">
+                        <label>Text Content</label>
+                        <div class="text-input-row">
+                            <input type="text" id="selected-text" placeholder="Enter text...">
+                        </div>
+                    </div>
+                    <div class="text-input-group">
+                        <label>Colors</label>
+                        <div class="text-input-row">
+                            <span style="font-size: 0.8rem; color: var(--text-secondary);">Fill:</span>
+                            <div class="color-picker-btn">
+                                <input type="color" id="selected-fill-color" value="#ffffff" title="Text Color">
+                            </div>
+                            <span style="font-size: 0.8rem; color: var(--text-secondary); margin-left: 0.5rem;">Outline:</span>
+                            <div class="color-picker-btn">
+                                <input type="color" id="selected-stroke-color" value="#000000" title="Outline Color">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="style-option">
+                        <label>Font Size: <span id="selected-font-size-value">40px</span></label>
+                        <input type="range" id="selected-font-size" min="16" max="100" value="40">
+                    </div>
+                    <div class="style-option">
+                        <label>Outline Width: <span id="selected-stroke-width-value">3px</span></label>
+                        <input type="range" id="selected-stroke-width" min="0" max="15" value="3">
+                    </div>
+                    <div class="style-option">
+                        <label>Font Family</label>
+                        <select id="selected-font-family">
+                            <option value="Impact" selected>Impact (Classic)</option>
+                            <option value="Arial Black">Arial Black</option>
+                            <option value="Comic Sans MS">Comic Sans MS</option>
+                            <option value="Helvetica">Helvetica</option>
+                            <option value="Times New Roman">Times New Roman</option>
+                            <option value="Georgia">Georgia</option>
+                            <option value="Verdana">Verdana</option>
+                            <option value="Courier New">Courier New</option>
+                        </select>
+                    </div>
+                    <button class="btn btn-danger btn-small" id="delete-text-btn" style="margin-top: 0.5rem;">
+                        🗑️ Delete Text Box
+                    </button>
+                </div>
+            </div>
+
+            <div class="action-buttons">
+                <button class="btn btn-secondary" id="reset-btn">
+                    <span>🔄</span> Reset
+                </button>
+                <div class="download-dropdown">
+                    <button class="btn btn-primary" id="download-btn">
+                        <span>⬇️</span> Download ▾
+                    </button>
+                    <div class="download-menu" id="download-menu">
+                        <button class="download-option" id="download-png-btn">🖼️ Download PNG</button>
+                        <button class="download-option" id="download-gif-btn">🎞️ Download GIF</button>
+                    </div>
+                </div>
+            </div>
+        </aside>
+    </main>
+
+    <div class="toast-container"></div>
+
+    <script src="https://unpkg.com/gifuct-js@2.1.2/dist/gifuct-js.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gif.js/0.2.0/gif.js"></script>
+    <script src="templates.js"></script>
+    <script src="gif-handler.js"></script>
+    <script src="meme-editor.js"></script>
+    <script src="app.js"></script>
+    <script>
+        document.getElementById('nav-create-btn')?.addEventListener('click', () => {
+            document.querySelector('.editor-section')?.scrollIntoView({ behavior: 'smooth' });
+        });
+
+        const observer = new MutationObserver(() => {
+            const container = document.getElementById('canvas-container');
+            const placeholder = document.getElementById('canvas-placeholder');
+            if (container?.classList.contains('has-image')) {
+                placeholder.style.display = 'none';
+            }
+        });
+
+        const container = document.getElementById('canvas-container');
+        if (container) {
+            observer.observe(container, { attributes: true, attributeFilter: ['class'] });
+        }
+    </script>
+</body>
+</html>
