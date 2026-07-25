@@ -1,0 +1,16 @@
+{
+  "name": "MemeForge — meme studio",
+  "short_name": "MemeForge",
+  "description": "Make memes in the browser: thousands of templates, every Google font, layers, filters and animated GIF export.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0E0F12",
+  "theme_color": "#0E0F12",
+  "categories": ["graphics", "photo", "entertainment"],
+  "icons": [
+    { "src": "assets/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "assets/icon-maskable.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable" }
+  ]
+}
