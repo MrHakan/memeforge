@@ -2,7 +2,7 @@
 
 import Sortable from '../vendor/sortable.esm.js';
 import { $, $$, el, debounce, toast, timeAgo, fileToDataUrl } from './util.js';
-import { loadTemplates, searchTemplates, randomTemplate, localTemplates, loadTrending, sourceNotes } from './sources.js';
+import { loadTemplates, searchTemplates, randomTemplate, localTemplates, loadTrending, sourceNotes, allTemplates } from './sources.js';
 import { loadCatalogue, getFonts, loadFont, isLoaded, addCustomFont, fontSource } from './fonts.js';
 import { DEFAULT_ADJUST } from './studio.js';
 import { addFontFile, listProjects, deleteProject } from './store.js';
@@ -143,12 +143,13 @@ export class Panels {
     }
 
     if (!items.length) {
-      grid.replaceChildren(el('p', {
-        class: 'empty-note',
-        text: this.templateSource === 'local'
-          ? 'Pictures you upload or paste show up here.'
-          : 'Nothing matched. Try a shorter word, or upload your own picture.',
-      }));
+      let message = 'Nothing matched. Try a shorter word, or upload your own picture.';
+      if (this.templateSource === 'local') {
+        message = 'Pictures you upload or paste show up here.';
+      } else if (!allTemplates().length) {
+        message = 'The template libraries are unreachable. Drop your own picture above and carry on.';
+      }
+      grid.replaceChildren(el('p', { class: 'empty-note', text: message }));
       return;
     }
 

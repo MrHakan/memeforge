@@ -60,10 +60,13 @@ static host (GitHub Pages, Netlify, an S3 bucket).
 
 ## Tests
 
-An end-to-end smoke test drives the real app in Chromium with the meme APIs
-stubbed, so it covers the whole path — grid, canvas, fonts, filters, undo, PNG
-export, GIF decode and re-encode, gallery, mobile layout — without depending on
-anyone else's uptime.
+Two Playwright suites drive the real app in Chromium:
+
+- `tests/smoke.mjs` stubs the meme APIs and covers the whole path — grid,
+  canvas, fonts, filters, layers, undo, PNG export, GIF decode and re-encode,
+  gallery, mobile layout — without depending on anyone else's uptime.
+- `tests/offline.mjs` kills every off-origin request and checks the app still
+  loads, says what is unreachable, and stays usable on bundled fonts.
 
 ```sh
 npm install          # playwright
