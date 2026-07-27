@@ -1,184 +1,349 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="MemeForge - Free online meme generator. Create memes with popular templates, add custom text, and download without watermarks.">
-    <title>MemeForge - Free Meme Generator</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="styles.css">
-    <style>body { background: #1a1a1a; }</style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="description" content="MemeForge — a meme studio in your browser. Thousands of templates, every Google font, layers, filters, animated GIF export. No account, no watermark, works offline.">
+<meta name="theme-color" content="#0E0F12">
+<title>MemeForge — meme studio</title>
+<link rel="manifest" href="app.webmanifest">
+<link rel="icon" href="assets/icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="css/app.css">
 </head>
 <body>
-    <header class="header">
-        <div class="header-content">
-            <a href="index.html" class="logo">
-                <span class="logo-icon">🔥</span>
-                <span>MemeForge</span>
-            </a>
-            <nav class="nav-menu">
-                <a href="templates.html" class="nav-btn">
-                    <span>📚</span> Templates
-                </a>
-                <button class="nav-btn primary" id="nav-create-btn">
-                    <span>✨</span> Create Meme
-                </button>
-            </nav>
+
+<a class="skip-link" href="#stage">Skip to canvas</a>
+
+<header class="topbar">
+  <div class="brand">
+    <span class="brand-mark" aria-hidden="true">
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M3 17h11l4-4-6-6-9 9z"/><path d="M14 4l6 6"/><path d="M4 21h16"/>
+      </svg>
+    </span>
+    <h1 class="wordmark">MemeForge</h1>
+  </div>
+
+  <div class="project-name">
+    <input id="project-title" type="text" value="Untitled meme" aria-label="Project name" spellcheck="false">
+  </div>
+
+  <div class="topbar-actions">
+    <div class="btn-group" role="group" aria-label="History">
+      <button class="icon-btn" id="undo-btn" title="Undo (Ctrl+Z)" aria-label="Undo" disabled>
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8h11a5 5 0 0 1 0 10H8"/><path d="M6 4L2 8l4 4"/></svg>
+      </button>
+      <button class="icon-btn" id="redo-btn" title="Redo (Ctrl+Shift+Z)" aria-label="Redo" disabled>
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8H10a5 5 0 0 0 0 10h6"/><path d="M18 4l4 4-4 4"/></svg>
+      </button>
+    </div>
+
+    <button class="icon-btn" id="theme-btn" title="Switch theme" aria-label="Switch theme">
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4.5"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M19.1 4.9l-1.4 1.4M6.3 17.7l-1.4 1.4"/></svg>
+    </button>
+    <button class="icon-btn" id="shortcuts-btn" title="Keyboard shortcuts" aria-label="Keyboard shortcuts">
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="12" rx="2"/><path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M8 14h8"/></svg>
+    </button>
+
+    <button class="btn btn-quiet" id="save-btn" title="Save to gallery (Ctrl+S)">
+      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><path d="M17 21v-8H7v8M7 3v5h8"/></svg>
+      <span>Save</span>
+    </button>
+
+    <div class="menu-wrap">
+      <button class="btn btn-primary" id="export-btn" aria-haspopup="menu" aria-expanded="false" title="Export (Ctrl+E)">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M4 20h16"/></svg>
+        <span>Export</span>
+      </button>
+      <div class="menu" id="export-menu" role="menu" hidden>
+        <p class="menu-label">Download</p>
+        <button class="menu-item" data-export="png" role="menuitem"><span>PNG</span><em>lossless</em></button>
+        <button class="menu-item" data-export="jpeg" role="menuitem"><span>JPG</span><em>smaller</em></button>
+        <button class="menu-item" data-export="webp" role="menuitem"><span>WebP</span><em>smallest</em></button>
+        <button class="menu-item" data-export="gif" role="menuitem" id="export-gif-item"><span>Animated GIF</span><em>load a GIF first</em></button>
+        <p class="menu-label">Scale</p>
+        <div class="seg" id="scale-seg" role="radiogroup" aria-label="Export scale">
+          <button class="seg-btn is-on" data-scale="1" role="radio" aria-checked="true">1×</button>
+          <button class="seg-btn" data-scale="2" role="radio" aria-checked="false">2×</button>
+          <button class="seg-btn" data-scale="4" role="radio" aria-checked="false">4×</button>
         </div>
-    </header>
+        <p class="menu-label">Send it</p>
+        <button class="menu-item" data-export="clipboard" role="menuitem"><span>Copy image</span><em>Ctrl+Shift+C</em></button>
+        <button class="menu-item" data-export="share" role="menuitem" id="share-item"><span>Share…</span><em>device sheet</em></button>
+      </div>
+    </div>
+  </div>
+</header>
 
-    <main class="main-container">
-        <section class="editor-section">
-            <div class="editor-header">
-                <h1 class="editor-title">Meme Generator</h1>
-                <div class="editor-toolbar">
-                    <button class="toolbar-btn" id="add-text-btn" title="Add Text Box">
-                        <span>➕</span> Add Text
-                    </button>
-                    <button class="toolbar-btn" id="play-pause-btn" title="Play/Pause GIF" style="display: none;">
-                        <span>▶️</span> Play
-                    </button>
-                    <button class="toolbar-btn" id="spacing-btn" title="Adjust Spacing">
-                        <span>↔️</span> Spacing
-                    </button>
-                    <button class="toolbar-btn" id="draw-btn" title="Draw on Meme">
-                        <span>✏️</span> Draw
-                    </button>
-                </div>
-            </div>
+<main class="workspace">
 
-            <div class="canvas-container" id="canvas-container">
-                <div class="canvas-wrapper" id="canvas-wrapper">
-                    <canvas id="meme-canvas"></canvas>
-                    <div class="text-boxes-overlay" id="text-boxes-overlay"></div>
-                </div>
-                <div class="canvas-placeholder" id="canvas-placeholder">
-                    <div style="font-size: 4rem; margin-bottom: 1rem;">🖼️</div>
-                    <p>Select a template or upload your own image</p>
-                </div>
-            </div>
-        </section>
+  <nav class="rail" aria-label="Panels">
+    <button class="rail-btn is-on" data-panel="templates" aria-label="Templates" title="Templates">
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><rect x="3" y="3" width="7.5" height="7.5" rx="1.4"/><rect x="13.5" y="3" width="7.5" height="7.5" rx="1.4"/><rect x="3" y="13.5" width="7.5" height="7.5" rx="1.4"/><rect x="13.5" y="13.5" width="7.5" height="7.5" rx="1.4"/></svg>
+      <span>Templates</span>
+    </button>
+    <button class="rail-btn" data-panel="trending" aria-label="Trending" title="Trending">
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M12 3s5 4.2 5 9a5 5 0 0 1-10 0c0-1.6.6-3 1.4-4.2.3 1.5 1.2 2.4 2.2 2.4 1.3 0 1.9-1.3 1.4-3.2-.3-1.3-.6-2.7 0-4z"/></svg>
+      <span>Trending</span>
+    </button>
+    <button class="rail-btn" data-panel="text" aria-label="Text" title="Text and fonts">
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 6.5V4h16v2.5"/><path d="M12 4v16"/><path d="M8.5 20h7"/></svg>
+      <span>Text</span>
+    </button>
+    <button class="rail-btn" data-panel="stickers" aria-label="Stickers" title="Stickers">
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M8.5 14.5a4.5 4.5 0 0 0 7 0"/><path d="M9 9.5h.01M15 9.5h.01"/></svg>
+      <span>Stickers</span>
+    </button>
+    <button class="rail-btn" data-panel="adjust" aria-label="Adjust" title="Image adjustments">
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M5 21V14M5 10V3M12 21v-9M12 8V3M19 21v-5M19 12V3"/><path d="M2.5 14h5M9.5 8h5M16.5 16h5"/></svg>
+      <span>Adjust</span>
+    </button>
+    <button class="rail-btn" data-panel="layers" aria-label="Layers" title="Layers">
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M12 3l9 5-9 5-9-5 9-5z"/><path d="M3 13l9 5 9-5"/></svg>
+      <span>Layers</span>
+    </button>
+    <button class="rail-btn" data-panel="gallery" aria-label="Gallery" title="Saved memes">
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 15l5-4 4 3 3-2 6 5"/><circle cx="8.5" cy="9" r="1.4"/></svg>
+      <span>Gallery</span>
+    </button>
+  </nav>
 
-        <aside class="controls-panel">
-            <div class="panel-section">
-                <div class="upload-area" id="upload-area">
-                    <div style="font-size: 2rem; margin-bottom: 0.5rem;">📤</div>
-                    <p>Upload new template</p>
-                    <input type="file" id="upload-input" accept="image/*">
-                </div>
-            </div>
+  <section class="drawer" id="drawer" aria-label="Library">
 
-            <div class="panel-section">
-                <h3 class="panel-title">Templates</h3>
-                <div class="template-tabs" id="template-tabs">
-                    <button class="tab-btn active" data-category="popular">🔥 Popular</button>
-                    <button class="tab-btn" data-category="classic">⭐ Classic</button>
-                    <button class="tab-btn" data-category="gif">🎬 GIFs</button>
-                    <button class="tab-btn" data-category="recent">🆕 Recent</button>
-                </div>
-                <div class="template-search">
-                    <input type="text" id="template-search" placeholder="Search templates...">
-                </div>
-                <div class="template-grid" id="template-grid"></div>
-                <button class="btn btn-secondary load-more-btn" id="load-more-btn" style="display: none; margin-top: 0.5rem;">
-                    Load More Templates
-                </button>
-            </div>
+    <!-- Templates -->
+    <div class="panel is-on" data-panel="templates">
+      <header class="panel-head">
+        <h2 class="panel-title">Templates</h2>
+        <button class="link-btn" id="random-template">Surprise me</button>
+      </header>
+      <div class="search-row">
+        <svg class="search-icon" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+        <input type="search" id="template-search" placeholder="Search templates" aria-label="Search templates" spellcheck="false">
+      </div>
+      <div class="chips" id="template-chips" role="tablist" aria-label="Template source">
+        <button class="chip is-on" data-source="all">All</button>
+        <button class="chip" data-source="imgflip">Imgflip</button>
+        <button class="chip" data-source="memegen">Memegen</button>
+        <button class="chip" data-source="local">Yours</button>
+      </div>
+      <div class="drop-zone" id="drop-zone">
+        <input type="file" id="file-input" accept="image/*" hidden>
+        <strong>Drop an image or GIF</strong>
+        <span>or <button class="link-btn" id="browse-btn">browse</button> · paste with Ctrl+V</span>
+      </div>
+      <div class="grid" id="template-grid" role="list"></div>
+      <p class="panel-note" id="template-note"></p>
+    </div>
 
-            <div class="panel-section" id="text-controls">
-                <h3 class="panel-title">Selected Text Box</h3>
-                <p class="no-selection-hint" id="no-selection-hint">Click a text box to edit it</p>
-                <div class="selected-text-controls" id="selected-text-controls" style="display: none;">
-                    <div class="text-input-group">
-                        <label>Text Content</label>
-                        <div class="text-input-row">
-                            <input type="text" id="selected-text" placeholder="Enter text...">
-                        </div>
-                    </div>
-                    <div class="text-input-group">
-                        <label>Colors</label>
-                        <div class="text-input-row">
-                            <span style="font-size: 0.8rem; color: var(--text-secondary);">Fill:</span>
-                            <div class="color-picker-btn">
-                                <input type="color" id="selected-fill-color" value="#ffffff" title="Text Color">
-                            </div>
-                            <span style="font-size: 0.8rem; color: var(--text-secondary); margin-left: 0.5rem;">Outline:</span>
-                            <div class="color-picker-btn">
-                                <input type="color" id="selected-stroke-color" value="#000000" title="Outline Color">
-                            </div>
-                        </div>
-                    </div>
-                    <div class="style-option">
-                        <label>Font Size: <span id="selected-font-size-value">40px</span></label>
-                        <input type="range" id="selected-font-size" min="16" max="100" value="40">
-                    </div>
-                    <div class="style-option">
-                        <label>Outline Width: <span id="selected-stroke-width-value">3px</span></label>
-                        <input type="range" id="selected-stroke-width" min="0" max="15" value="3">
-                    </div>
-                    <div class="style-option">
-                        <label>Font Family</label>
-                        <select id="selected-font-family">
-                            <option value="Impact" selected>Impact (Classic)</option>
-                            <option value="Arial Black">Arial Black</option>
-                            <option value="Comic Sans MS">Comic Sans MS</option>
-                            <option value="Helvetica">Helvetica</option>
-                            <option value="Times New Roman">Times New Roman</option>
-                            <option value="Georgia">Georgia</option>
-                            <option value="Verdana">Verdana</option>
-                            <option value="Courier New">Courier New</option>
-                        </select>
-                    </div>
-                    <button class="btn btn-danger btn-small" id="delete-text-btn" style="margin-top: 0.5rem;">
-                        🗑️ Delete Text Box
-                    </button>
-                </div>
-            </div>
+    <!-- Trending -->
+    <div class="panel" data-panel="trending">
+      <header class="panel-head">
+        <h2 class="panel-title">Trending</h2>
+        <button class="link-btn" id="trending-refresh">Refresh</button>
+      </header>
+      <p class="panel-hint">Fresh posts pulled from Reddit meme feeds. Click one to load it on the bench.</p>
+      <div class="chips" id="trending-chips" role="tablist" aria-label="Subreddit">
+        <button class="chip is-on" data-sub="memes">r/memes</button>
+        <button class="chip" data-sub="dankmemes">r/dankmemes</button>
+        <button class="chip" data-sub="wholesomememes">r/wholesome</button>
+        <button class="chip" data-sub="ProgrammerHumor">r/proghumor</button>
+      </div>
+      <div class="feed" id="trending-feed"></div>
+      <p class="panel-note" id="trending-note"></p>
+    </div>
 
-            <div class="action-buttons">
-                <button class="btn btn-secondary" id="reset-btn">
-                    <span>🔄</span> Reset
-                </button>
-                <div class="download-dropdown">
-                    <button class="btn btn-primary" id="download-btn">
-                        <span>⬇️</span> Download ▾
-                    </button>
-                    <div class="download-menu" id="download-menu">
-                        <button class="download-option" id="download-png-btn">🖼️ Download PNG</button>
-                        <button class="download-option" id="download-gif-btn">🎞️ Download GIF</button>
-                    </div>
-                </div>
-            </div>
-        </aside>
-    </main>
+    <!-- Text -->
+    <div class="panel" data-panel="text">
+      <header class="panel-head">
+        <h2 class="panel-title">Text</h2>
+      </header>
+      <div class="stack">
+        <button class="btn btn-block" id="add-classic"><span>Add top &amp; bottom text</span></button>
+        <button class="btn btn-block btn-quiet" id="add-text"><span>Add a text box</span> <kbd>T</kbd></button>
+      </div>
+      <h3 class="sub-title">Presets</h3>
+      <div class="preset-row" id="text-presets">
+        <button class="preset" data-preset="impact">Impact</button>
+        <button class="preset" data-preset="clean">Clean</button>
+        <button class="preset" data-preset="neon">Neon</button>
+        <button class="preset" data-preset="tag">Tag</button>
+        <button class="preset" data-preset="type">Typewriter</button>
+        <button class="preset" data-preset="quote">Quote</button>
+      </div>
+      <h3 class="sub-title">Fonts <span class="count mono" id="font-count">…</span></h3>
+      <div class="search-row">
+        <svg class="search-icon" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+        <input type="search" id="font-search" placeholder="Search every Google font" aria-label="Search fonts" spellcheck="false">
+      </div>
+      <div class="chips" id="font-chips" role="tablist" aria-label="Font category">
+        <button class="chip is-on" data-cat="all">All</button>
+        <button class="chip" data-cat="display">Display</button>
+        <button class="chip" data-cat="handwriting">Hand</button>
+        <button class="chip" data-cat="serif">Serif</button>
+        <button class="chip" data-cat="monospace">Mono</button>
+      </div>
+      <div class="font-list" id="font-list"></div>
+      <label class="btn btn-block btn-quiet upload-font">
+        <input type="file" id="font-input" accept=".ttf,.otf,.woff,.woff2" hidden>
+        <span>Upload a font file</span>
+      </label>
+    </div>
 
-    <div class="toast-container"></div>
+    <!-- Stickers -->
+    <div class="panel" data-panel="stickers">
+      <header class="panel-head">
+        <h2 class="panel-title">Stickers</h2>
+      </header>
+      <div class="search-row">
+        <svg class="search-icon" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+        <input type="search" id="sticker-search" placeholder="Search emoji" aria-label="Search stickers" spellcheck="false">
+      </div>
+      <div class="sticker-grid" id="sticker-grid"></div>
+      <h3 class="sub-title">Shapes</h3>
+      <div class="stack-row" id="shape-row">
+        <button class="btn btn-quiet" data-shape="rect">Box</button>
+        <button class="btn btn-quiet" data-shape="ellipse">Oval</button>
+        <button class="btn btn-quiet" data-shape="arrow">Arrow</button>
+        <button class="btn btn-quiet" data-shape="bar">Censor bar</button>
+      </div>
+      <h3 class="sub-title">Cutouts</h3>
+      <label class="btn btn-block btn-quiet upload-font">
+        <input type="file" id="layer-image-input" accept="image/*" hidden>
+        <span>Add a picture as a layer</span>
+      </label>
+      <p class="panel-hint">Drop a face onto a template, stack two memes, cover a logo.</p>
+    </div>
 
-    <script src="https://unpkg.com/gifuct-js@2.1.2/dist/gifuct-js.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/gif.js/0.2.0/gif.js"></script>
-    <script src="templates.js"></script>
-    <script src="gif-handler.js"></script>
-    <script src="meme-editor.js"></script>
-    <script src="app.js"></script>
-    <script>
-        document.getElementById('nav-create-btn')?.addEventListener('click', () => {
-            document.querySelector('.editor-section')?.scrollIntoView({ behavior: 'smooth' });
-        });
+    <!-- Adjust -->
+    <div class="panel" data-panel="adjust">
+      <header class="panel-head">
+        <h2 class="panel-title">Adjust</h2>
+        <button class="link-btn" id="adjust-reset">Reset</button>
+      </header>
+      <p class="panel-hint">Everything here changes the picture underneath your layers.</p>
+      <div class="preset-row" id="filter-presets">
+        <button class="preset is-on" data-filter="none">None</button>
+        <button class="preset" data-filter="deepfry">Deep fry</button>
+        <button class="preset" data-filter="noir">Noir</button>
+        <button class="preset" data-filter="faded">Faded</button>
+        <button class="preset" data-filter="vapor">Vapor</button>
+        <button class="preset" data-filter="cursed">Cursed</button>
+      </div>
+      <div class="sliders" id="adjust-sliders"></div>
+      <h3 class="sub-title">Caption bar</h3>
+      <div class="field">
+        <label for="pad-top">Height</label>
+        <div class="row">
+          <input type="range" id="pad-top" min="0" max="60" value="0" step="1">
+          <output class="mono" id="pad-top-out">0%</output>
+        </div>
+      </div>
+      <div class="field">
+        <label for="pad-color">Colour</label>
+        <div class="row">
+          <input type="color" id="pad-color" value="#ffffff">
+          <span class="hint">The white box on top, straight out of 2011.</span>
+        </div>
+      </div>
+    </div>
 
-        const observer = new MutationObserver(() => {
-            const container = document.getElementById('canvas-container');
-            const placeholder = document.getElementById('canvas-placeholder');
-            if (container?.classList.contains('has-image')) {
-                placeholder.style.display = 'none';
-            }
-        });
+    <!-- Layers -->
+    <div class="panel" data-panel="layers">
+      <header class="panel-head">
+        <h2 class="panel-title">Layers</h2>
+        <span class="count mono" id="layer-count">0</span>
+      </header>
+      <p class="panel-hint">Drag to restack. Top of the list sits on top of the meme.</p>
+      <div class="layer-list" id="layer-list"></div>
+    </div>
 
-        const container = document.getElementById('canvas-container');
-        if (container) {
-            observer.observe(container, { attributes: true, attributeFilter: ['class'] });
-        }
-    </script>
+    <!-- Gallery -->
+    <div class="panel" data-panel="gallery">
+      <header class="panel-head">
+        <h2 class="panel-title">Gallery</h2>
+        <button class="link-btn" id="gallery-new">New meme</button>
+      </header>
+      <p class="panel-hint">Saved on this device only — nothing is uploaded anywhere.</p>
+      <div class="gallery-list" id="gallery-list"></div>
+    </div>
+
+  </section>
+
+  <section class="stage-col">
+    <div class="stage" id="stage">
+      <div class="bench" id="bench">
+        <div class="marks" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+        <div class="canvas-hold" id="canvas-hold">
+          <canvas id="c"></canvas>
+        </div>
+        <div class="empty-state" id="empty-state">
+          <p class="empty-kicker mono">bench empty</p>
+          <h2>Pick a template<br>or drop a picture</h2>
+          <p class="empty-sub">Templates are on the left. You can also paste an image with Ctrl+V.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="readout mono" id="readout">
+      <span class="readout-item"><b id="ro-size">—</b> px</span>
+      <span class="readout-sep"></span>
+      <span class="readout-item"><b id="ro-zoom">—</b> zoom</span>
+      <span class="readout-sep"></span>
+      <span class="readout-item"><b id="ro-layers">0</b> layers</span>
+      <span class="readout-sep" id="ro-gif-sep" hidden></span>
+      <span class="readout-item" id="ro-gif" hidden>
+        <button class="play-btn" id="play-btn" aria-label="Play or pause the GIF">❚❚</button>
+        <b id="ro-frames">0</b> frames
+      </span>
+      <span class="readout-grow"></span>
+      <span class="readout-item readout-src" id="ro-source">no media</span>
+    </div>
+  </section>
+
+  <aside class="inspector" id="inspector" aria-label="Selection">
+    <div class="inspector-empty" id="inspector-empty">
+      <header class="panel-head"><h2 class="panel-title">Nothing selected</h2></header>
+      <p class="panel-hint">Pick a layer to style it. Double-click text on the canvas to retype it.</p>
+      <div class="stack">
+        <button class="btn btn-block" id="add-text-2">Add a text box</button>
+      </div>
+      <h3 class="sub-title">Bench</h3>
+      <div class="stack-row">
+        <button class="btn btn-quiet" id="fit-btn">Refit</button>
+        <button class="btn btn-quiet" id="clear-btn">Clear layers</button>
+      </div>
+    </div>
+    <div class="inspector-body" id="inspector-body" hidden></div>
+  </aside>
+</main>
+
+<div class="toasts" id="toasts" role="status" aria-live="polite"></div>
+
+<dialog class="dialog" id="shortcuts-dialog">
+  <h2>Shortcuts</h2>
+  <ul class="keys">
+    <li><kbd>T</kbd> add text</li>
+    <li><kbd>Ctrl</kbd>+<kbd>Z</kbd> undo</li>
+    <li><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Z</kbd> redo</li>
+    <li><kbd>Ctrl</kbd>+<kbd>D</kbd> duplicate layer</li>
+    <li><kbd>Del</kbd> delete layer</li>
+    <li><kbd>Ctrl</kbd>+<kbd>V</kbd> paste an image</li>
+    <li><kbd>Ctrl</kbd>+<kbd>S</kbd> save to gallery</li>
+    <li><kbd>Ctrl</kbd>+<kbd>E</kbd> export PNG</li>
+    <li><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>C</kbd> copy image</li>
+    <li><kbd>↑ ↓ ← →</kbd> nudge, <kbd>Shift</kbd> for 10px</li>
+    <li><kbd>Esc</kbd> deselect</li>
+  </ul>
+  <button class="btn btn-block" id="shortcuts-close">Got it</button>
+</dialog>
+
+<div class="progress" id="progress" hidden>
+  <div class="progress-card">
+    <p class="mono" id="progress-label">Encoding GIF</p>
+    <div class="bar"><i id="progress-bar"></i></div>
+  </div>
+</div>
+
+<script type="module" src="js/main.js"></script>
 </body>
 </html>

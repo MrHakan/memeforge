@@ -1,0 +1,4 @@
+node_modules/
+tests/shots/
+tests/fixtures/
+.DS_Store

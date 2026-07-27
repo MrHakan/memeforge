@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="ember" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FF7A3D"/>
+      <stop offset="1" stop-color="#C9430F"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" fill="#0E0F12"/>
+  <g fill="none" stroke="url(#ember)" stroke-width="30" stroke-linecap="round" stroke-linejoin="round" transform="translate(51.2 51.2) scale(0.8)">
+    <path d="M112 344h224l72-72-116-116L112 344z"/>
+    <path d="M292 120l100 100"/>
+    <path d="M120 408h272"/>
+  </g>
+</svg>
