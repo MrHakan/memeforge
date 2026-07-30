@@ -117,6 +117,10 @@ async function makeGifFixture(page) {
 const run = async () => {
   const browser = await chromium.launch();
   const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, acceptDownloads: true });
+  // Spend the light-mode easter egg up front; tests/flashbang.mjs covers it.
+  await context.addInitScript(() => {
+    localStorage.setItem('mf.settings.v1', JSON.stringify({ theme: 'dark', flashbanged: true }));
+  });
   const page = await context.newPage();
 
   const errors = [];

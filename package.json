@@ -7,8 +7,9 @@
   "scripts": {
     "dev": "npx --yes http-server -p 8099 -c-1 .",
     "fixtures": "node tests/make-fixtures.mjs",
-    "test": "node tests/make-fixtures.mjs && node tests/smoke.mjs && node tests/offline.mjs",
+    "test": "node tests/make-fixtures.mjs && node tests/smoke.mjs && node tests/offline.mjs && node tests/flashbang.mjs",
     "test:offline": "node tests/offline.mjs",
+    "test:flashbang": "node tests/flashbang.mjs",
     "test:subpath": "node tests/subpath.mjs"
   },
   "devDependencies": {
