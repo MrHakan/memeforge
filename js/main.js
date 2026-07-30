@@ -5,6 +5,7 @@ import { Studio } from './studio.js';
 import { Panels } from './panels.js';
 import { Inspector } from './inspector.js';
 import { loadFont, addCustomFont } from './fonts.js';
+import { flashbang } from './flashbang.js';
 import {
   getSetting, setSetting, addRecent, saveProject, saveAutosave, getAutosave, getFontFiles,
 } from './store.js';
@@ -22,7 +23,13 @@ function setTheme(theme) {
 }
 setTheme(getSetting('theme') || 'dark');
 $('#theme-btn').addEventListener('click', () => {
-  setTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark');
+  const next = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
+  setTheme(next);
+  // Light mode is blinding the first time. Once per device, and never if the
+  // visitor has asked for reduced motion.
+  if (next === 'light' && !getSetting('flashbanged') && flashbang()) {
+    setSetting('flashbanged', true);
+  }
 });
 
 /* ---------------- media ---------------- */
