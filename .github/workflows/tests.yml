@@ -1,0 +1,41 @@
+name: Tests
+
+# Kept separate from the Pages workflow on purpose: a flaky test run should
+# never be the reason the site stops publishing.
+on:
+  push:
+    branches: ['**']
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  playwright:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - run: npm install --no-audit --no-fund
+
+      - run: npx playwright install --with-deps chromium
+
+      - name: Serve the site
+        run: |
+          python3 -m http.server 8099 >/tmp/http.log 2>&1 &
+          for i in $(seq 1 30); do
+            curl -sf http://127.0.0.1:8099/index.html >/dev/null && exit 0
+            sleep 1
+          done
+          echo "server never came up" && cat /tmp/http.log && exit 1
+
+      - run: npm test
+
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: screenshots
+          path: tests/shots/
+          if-no-files-found: ignore

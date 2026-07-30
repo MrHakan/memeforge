@@ -56,7 +56,24 @@ python3 -m http.server 8099
 ```
 
 Then open <http://127.0.0.1:8099/>. Deploying means copying the folder to any
-static host (GitHub Pages, Netlify, an S3 bucket).
+static host.
+
+## Publishing to GitHub Pages
+
+`.github/workflows/pages.yml` publishes the repository as-is. Two things to do
+once:
+
+1. **Settings → Pages → Build and deployment → Source: GitHub Actions.**
+2. Merge to `main`. Every push to `main` then republishes; you can also run the
+   workflow by hand from the Actions tab once it is on the default branch.
+
+The site lands at `https://<owner>.github.io/<repo>/`.
+
+Notes if you fork or rename things: `.nojekyll` is required, because Jekyll's
+default excludes would drop `vendor/` and the app would load with no libraries
+at all. Every path in the app is relative, so a project site served from a
+subdirectory works without configuration — `npm run test:subpath` is there to
+prove it (serve the parent directory on port 8100 first).
 
 ## Tests
 
