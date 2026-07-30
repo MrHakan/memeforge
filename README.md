@@ -60,20 +60,22 @@ static host.
 
 ## Publishing to GitHub Pages
 
-`.github/workflows/pages.yml` publishes the repository as-is. Two things to do
-once:
+`.github/workflows/static.yml` publishes the repository as-is on every push to
+`main`. Set **Settings → Pages → Build and deployment → Source: GitHub Actions**
+once, and the site lands at `https://<owner>.github.io/<repo>/`.
 
-1. **Settings → Pages → Build and deployment → Source: GitHub Actions.**
-2. Merge to `main`. Every push to `main` then republishes; you can also run the
-   workflow by hand from the Actions tab once it is on the default branch.
+Keep it to one Pages workflow. Deploy workflows share the `pages` concurrency
+group, so two of them on the same trigger just queue up and the last one to
+finish decides what is published.
 
-The site lands at `https://<owner>.github.io/<repo>/`.
+There is no build step and nothing here needs Jekyll, so the workflow uploads
+the tree untouched. `.nojekyll` is kept for the other Pages mode — if the source
+is ever switched to *Deploy from a branch*, that build runs the repository
+through Jekyll, and the file turns it off.
 
-Notes if you fork or rename things: `.nojekyll` is required, because Jekyll's
-default excludes would drop `vendor/` and the app would load with no libraries
-at all. Every path in the app is relative, so a project site served from a
-subdirectory works without configuration — `npm run test:subpath` is there to
-prove it (serve the parent directory on port 8100 first).
+Every path in the app is relative, so a project site served from a subdirectory
+works without configuration — `npm run test:subpath` proves it (serve the parent
+directory on port 8100 first).
 
 ## Tests
 
