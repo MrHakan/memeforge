@@ -104,3 +104,7 @@ export async function toggleFavorite(item) {
   await set('mf.library.favorites', exists ? list.filter((entry) => entry.id !== item.id) : [item, ...list]);
   return !exists;
 }
+
+export async function deleteLibraryItem(kind, id) {
+  await set('mf.library.' + kind, (await getLibrary(kind)).filter((entry) => entry.id !== id));
+}

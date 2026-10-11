@@ -109,6 +109,7 @@ js/fonts.js         font catalogue and on-demand loading
 js/media.js         GIF decode/encode, video extraction and clip composition
 js/workbench.js     projects, canvas tools, frame/time controls and context menus
 js/advanced.js      layer timing tracks, batch edits, motion, drawing and GIF output
+js/creative.js      pose animation, masks, formats, reusable parts and checkpoints
 js/store.js         IndexedDB and settings
 sw.js               offline shell
 ```
@@ -225,3 +226,42 @@ collages, mobile layout and cold offline reload. This suite also runs in `npm te
 
 `npm run test:advanced` exercises real GIF decoding, encoded color/timing results,
 video conversion, batch edits, tracks, drawing, motion, templates and mobile UI.
+
+
+### Poses, masks, reusable parts and checkpoints
+
+- **Start / end poses:** record the current layer transform from the canvas for
+  each endpoint, or enter position, scale, rotation and opacity numerically. Linear,
+  smooth, ease-in and ease-out interpolation is available. A zero duration spans
+  the layer range and reaches its end pose on the last visible frame.
+- **GIF loop:** append a ping-pong return path without repeated endpoints, hold the
+  final frame, or crossfade the background toward the first frame. Layer bindings
+  follow copied frames. Generated crossfade frames are embedded as PNG sources in
+  portable projects, and loop operations share the normal undo history.
+- **Brush mask:** paint an irregular background selection for blur, pixelation or
+  a saturation/contrast filter. Each stroke becomes an editable, movable mask
+  layer. Reopen Brush mask with a mask selected to change its effect or width.
+  Frame selection, layer timing, undo and export all apply to masks. The
+  purple brush feedback is not part of the result.
+- **Canvas ratio:** use 1:1, 9:16, 16:9, 4:5 or custom dimensions. Presets include
+  existing padding. Fit adds background space; cover crops the displayed picture
+  without changing its source. Optional proportional layer resizing also updates
+  frame overrides and pose endpoints. Restore original format reverses the size.
+- **My parts:** store selected layers as editable parts, save text styles or import
+  image assets. Drag parts to a canvas position, or use Add (also available on
+  touch devices). Parts capture the current appearance and receive fresh frame
+  bindings in the destination project. Styles preserve the selected text content.
+  The local part library retains uploaded fonts and reports storage errors.
+- **Versions:** save up to 20 named checkpoints for the current project on this
+  device. Compare frame previews side by side. Restoring reopens the entire project
+  and first saves the current work as a safety checkpoint. Gallery/autosave project
+  identities keep their checkpoints across reloads; portable project files carry
+  their current state, while checkpoint history stays on the device.
+- **Arrange / group:** choose multiple layers, align edges or centers, distribute
+  equal gaps, or group them for shared movement and scaling. Groups retain member
+  frame edits in project files. Ungrouping preserves their visible animation as
+  per-frame edits. Snap guides follow other layer edges and centers, and remain
+  editor overlays rather than exported pixels.
+
+`npm run test:creative` covers pose interpolation, source crossfades, mask pixels,
+ratio exports, grouped frame edits, reusable parts, checkpoints and mobile forms.

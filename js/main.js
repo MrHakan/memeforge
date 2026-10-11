@@ -5,6 +5,7 @@ import { Studio } from './studio.js';
 import { Panels } from './panels.js';
 import { Inspector } from './inspector.js';
 import { loadFont, addCustomFont } from './fonts.js';
+import { Creative } from './creative.js';
 import { Advanced } from './advanced.js';
 import { Workbench } from './workbench.js';
 import { flashbang } from './flashbang.js';
@@ -336,7 +337,7 @@ function newProject() {
 
 /** Text restored from storage may use fonts this session has not fetched yet. */
 async function ensureFonts() {
-  const families = [...new Set(studio.canvas.getObjects().map((o) => o.fontFamily).filter(Boolean))];
+  const families = [...new Set([...studio.walkObjects()].map((o) => o.fontFamily).filter(Boolean))];
   await Promise.all(families.map((f) => loadFont(f)));
   studio.canvas.requestRenderAll();
 }
@@ -486,7 +487,7 @@ async function boot() {
   updateReadout();
 }
 
-boot();
+const appReady = boot();
 
 if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
   window.addEventListener('load', () => {
@@ -494,8 +495,9 @@ if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
   });
 }
 
-const workbench = new Workbench(studio, panels, { loadMedia, openProject, newProject, projectTitle, runExport });
+const workbench = new Workbench(studio, panels, { loadMedia, openProject, newProject, projectTitle, runExport, getProjectId: () => projectId });
 const advanced = new Advanced(studio, workbench);
+const creative = new Creative(studio, workbench);
 
 // Handy for poking at the studio from the console.
-Object.assign(window, { studio, panels, inspector, workbench, advanced, loadMedia, el });
+Object.assign(window, { studio, panels, inspector, workbench, advanced, creative, appReady, loadMedia, el });

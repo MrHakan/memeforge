@@ -151,12 +151,13 @@ export class Advanced {
     if (this.onion.hidden) return;
     this.onion.width = s.canvas.width; this.onion.height = s.canvas.height;
     this.onion.style.width = s.canvas.upperCanvasEl.style.width; this.onion.style.height = s.canvas.upperCanvasEl.style.height;
-    const ctx = this.onion.getContext('2d'), rect = s.contentRect, pad = s.paddingPixels;
+    const ctx = this.onion.getContext('2d'), rect = s.contentRect, pad = s.paddingPixels, place = s.imagePlacement;
+    ctx.beginPath(); ctx.rect(pad.left, pad.top, s.mediaCanvas.width, s.mediaCanvas.height); ctx.clip();
     ctx.globalAlpha = +$('#onion-opacity').value / 100;
     for (const i of [s.frameIndex - 1, s.frameIndex + 1]) {
       const f = s.media.frames[i]; if (!f) continue;
       const sx = f.canvas.width / s.media.width, sy = f.canvas.height / s.media.height;
-      ctx.drawImage(f.canvas, rect.x * sx, rect.y * sy, rect.width * sx, rect.height * sy, pad.left, pad.top, rect.width, rect.height);
+      ctx.drawImage(f.canvas, rect.x * sx, rect.y * sy, rect.width * sx, rect.height * sy, pad.left + place.x, pad.top + place.y, place.width, place.height);
     }
   }
 

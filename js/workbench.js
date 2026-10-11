@@ -209,11 +209,14 @@ export class Workbench {
         const pad = studio.paddingPixels;
         const content = studio.contentRect;
         const scale = studio.displayScale;
-        const x1 = clamp((Math.min(e.clientX, this.cropStart.x) - bounds.left) / scale - pad.left, 0, content.width);
-        const y1 = clamp((Math.min(e.clientY, this.cropStart.y) - bounds.top) / scale - pad.top, 0, content.height);
-        const x2 = clamp((Math.max(e.clientX, this.cropStart.x) - bounds.left) / scale - pad.left, 0, content.width);
-        const y2 = clamp((Math.max(e.clientY, this.cropStart.y) - bounds.top) / scale - pad.top, 0, content.height);
-        if (e.type === 'pointerup' && x2 - x1 > 2 && y2 - y1 > 2) studio.setCrop({ x: content.x + x1, y: content.y + y1, width: x2 - x1, height: y2 - y1 });
+        const place = studio.imagePlacement;
+        const x1 = clamp((Math.min(e.clientX, this.cropStart.x) - bounds.left) / scale - pad.left, 0, studio.mediaCanvas.width);
+        const y1 = clamp((Math.min(e.clientY, this.cropStart.y) - bounds.top) / scale - pad.top, 0, studio.mediaCanvas.height);
+        const x2 = clamp((Math.max(e.clientX, this.cropStart.x) - bounds.left) / scale - pad.left, 0, studio.mediaCanvas.width);
+        const y2 = clamp((Math.max(e.clientY, this.cropStart.y) - bounds.top) / scale - pad.top, 0, studio.mediaCanvas.height);
+        const a = clamp((x1 - place.x) * content.width / place.width, 0, content.width), b = clamp((x2 - place.x) * content.width / place.width, 0, content.width);
+        const c = clamp((y1 - place.y) * content.height / place.height, 0, content.height), d = clamp((y2 - place.y) * content.height / place.height, 0, content.height);
+        if (e.type === 'pointerup' && b - a > 2 && d - c > 2) studio.setCrop({ x: content.x + a, y: content.y + c, width: b - a, height: d - c });
         this.cropGuide?.remove(); this.cropStart = null; this.drawingCrop = false;
         $('#crop-draw').setAttribute('aria-pressed', 'false'); stage.classList.remove('is-cropping');
       }

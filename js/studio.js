@@ -7,14 +7,14 @@ import { loadImage, clamp, uid, fetchBuffer, fileToDataUrl } from './util.js';
 
 const MAX_IMAGE_EDGE = 1600;
 const MAX_GIF_EDGE = 720;
-const FRAME_PROPS = ['left', 'top', 'scaleX', 'scaleY', 'angle', 'opacity', 'visible', 'text', 'fontFamily', 'fontSize', 'fontWeight', 'fontStyle', 'fill', 'stroke', 'strokeWidth', 'charSpacing', 'lineHeight', 'textAlign', 'flipX', 'flipY', 'width', 'height', 'rx', 'ry', 'skewX', 'skewY', 'originX', 'originY', 'mfUpper', 'shadow'];
+const FRAME_PROPS = ['left', 'top', 'scaleX', 'scaleY', 'angle', 'opacity', 'visible', 'text', 'fontFamily', 'fontSize', 'fontWeight', 'fontStyle', 'fill', 'stroke', 'strokeWidth', 'strokeUniform', 'charSpacing', 'lineHeight', 'textAlign', 'flipX', 'flipY', 'width', 'height', 'rx', 'ry', 'skewX', 'skewY', 'originX', 'originY', 'mfUpper', 'shadow', 'mfRegion', 'mfMaskWidth'];
 const emptyPad = () => ({ top: 0, right: 0, bottom: 0, left: 0, color: '#ffffff', unit: 'px' });
 const clone = (value) => JSON.parse(JSON.stringify(value));
 
 const EXTRA_PROPS = [
-  'mfKind', 'mfUpper', 'mfName', 'selectable', 'evented',
+  'mfKind', 'mfUpper', 'mfName', 'selectable', 'evented', 'objectCaching', 'subTargetCheck',
   'lockMovementX', 'lockMovementY', 'lockRotation', 'strokeUniform', 'paintFirst',
-  'mfBase', 'mfOverrides', 'mfFrameIds', 'mfStart', 'mfEnd', 'mfCell', 'mfAnimation', 'mfRegion',
+  'mfBase', 'mfOverrides', 'mfFrameIds', 'mfStart', 'mfEnd', 'mfCell', 'mfAnimation', 'mfRegion', 'mfMask', 'mfMaskWidth',
 ];
 
 export const DEFAULT_ADJUST = {
@@ -75,6 +75,7 @@ export class Studio extends EventTarget {
     this.pad = emptyPad();
     this.crop = null;
     this.collage = null;
+    this.scene = null;
     this.editMode = 'video';
     this.applyingFrame = false;
     this.filterPreset = 'none';
@@ -92,7 +93,13 @@ export class Studio extends EventTarget {
     this.restoring = false;
 
     const bump = (e) => {
-      if (!this.restoring && !this.applyingFrame && e?.target) this.rememberObject(e.target);
+      if (e?.target?.type === 'path' && this.canvas.isDrawingMode) return;
+      if (!this.restoring && !this.applyingFrame && e?.target) {
+        if (e.target.type === 'activeselection') {
+          const objects = this.canvas.getActiveObjects(); this.canvas.discardActiveObject();
+          for (const obj of objects) this.rememberObject(obj);
+        } else this.rememberObject(e.target);
+      }
       this.commit();
     };
     this.canvas.on('object:added', bump);
@@ -100,7 +107,15 @@ export class Studio extends EventTarget {
     this.canvas.on('object:moving', (e) => this.snapObject(e.target));
     if (matchMedia('(pointer: coarse)').matches) fabric.InteractiveFabricObject.ownDefaults.touchCornerSize = 28;
     this.canvas.on('object:modified', (e) => { bump(e); this.applyFrame(); this.paintMedia(); });
-    this.canvas.on('path:created', ({ path }) => { path.mfKind = 'drawing'; path.mfName = 'Drawing'; this.rememberObject(path); this.commit(); this.emit('layers'); });
+    this.canvas.on('path:created', ({ path }) => {
+      path.mfKind = this.maskDrawing ? 'mask' : 'drawing'; path.mfName = this.maskDrawing ? 'Brush mask' : 'Drawing';
+      if (this.maskDrawing) {
+        path.mfRegion = { ...this.maskDrawing }; path.mfMask = true; path.mfMaskWidth = path.strokeWidth;
+        path.set({ stroke: 'rgba(0,0,0,0)', fill: '', objectCaching: false });
+        delete path.mfBase; delete path.mfOverrides;
+      }
+      this.rememberObject(path); this.applyFrame(); this.paintMedia(); this.commit(); this.emit('layers');
+    });
     this.canvas.on('text:changed', (e) => {
       this.applyCase(e.target);
       this.emit('layers');
@@ -158,12 +173,13 @@ export class Studio extends EventTarget {
     this.stop();
     this.crop = null;
     this.collage = null;
+    this.scene = null;
     this.frameAdjust = {};
     this.selectedFrameIds = new Set();
     this.past = [];
     this.future = [];
     // Old frame bindings cannot follow a different GIF.
-    for (const obj of this.canvas.getObjects()) {
+    for (const obj of this.walkObjects()) {
       if (obj.mfBase) obj.set(obj.mfBase);
       delete obj.mfFrameIds;
       delete obj.mfOverrides;
@@ -194,6 +210,7 @@ export class Studio extends EventTarget {
 
     this.layout();
     if (previous) this.rescaleLayers(previous);
+    this.applyFrame();
     this.paintMedia();
     this.fit();
     this.commit();
@@ -209,16 +226,20 @@ export class Studio extends EventTarget {
     const fy = this.canvas.height / previous.height;
     if (!isFinite(fx) || !isFinite(fy) || (fx === 1 && fy === 1)) return;
     const f = Math.min(fx, fy);
+    const resize = (props) => {
+      const out = { ...props };
+      for (const [key, ratio] of [['left', fx], ['top', fy], ['scaleX', f], ['scaleY', f]]) if (out[key] != null) out[key] *= ratio;
+      return out;
+    };
     for (const obj of this.canvas.getObjects()) {
-      obj.set({
-        left: obj.left * fx,
-        top: obj.top * fy,
-        scaleX: (obj.scaleX || 1) * f,
-        scaleY: (obj.scaleY || 1) * f,
-      });
-      obj.mfBase = this.objectProps(obj);
-      obj.setCoords();
+      obj.mfBase = resize(obj.mfBase || this.objectProps(obj));
+      for (const [id, props] of Object.entries(obj.mfOverrides || {})) obj.mfOverrides[id] = resize(props);
+      if (obj.mfAnimation?.kind === 'poses') {
+        for (const role of ['start', 'end']) if (obj.mfAnimation[role]) obj.mfAnimation[role] = resize(obj.mfAnimation[role]);
+      }
+      obj.set(obj.mfBase); obj._motion = null; obj.setCoords();
     }
+    this.applyFrame();
     this.canvas.requestRenderAll();
     this.emit('layers');
   }
@@ -238,11 +259,11 @@ export class Studio extends EventTarget {
     if (!this.media) return;
     const rect = this.contentRect;
     const pad = this.paddingPixels;
-    this.mediaCanvas.width = rect.width;
-    this.mediaCanvas.height = rect.height;
-    this.canvas.setDimensions({ width: rect.width + pad.left + pad.right, height: rect.height + pad.top + pad.bottom });
+    const width = this.scene?.width || rect.width, height = this.scene?.height || rect.height;
+    this.mediaCanvas.width = width; this.mediaCanvas.height = height;
+    this.canvas.setDimensions({ width: width + pad.left + pad.right, height: height + pad.top + pad.bottom });
     this.canvas.backgroundColor = this.pad.color;
-    this.mediaImage.set({ top: pad.top, left: pad.left, width: rect.width, height: rect.height });
+    this.mediaImage.set({ top: pad.top, left: pad.left, width, height });
     this.canvas.backgroundImage = this.mediaImage;
     this.canvas.requestRenderAll();
   }
@@ -306,7 +327,9 @@ export class Studio extends EventTarget {
     const rect = this.contentRect;
     const sx = src.width / this.media.width;
     const sy = src.height / this.media.height;
-    this.mediaCtx.drawImage(src, rect.x * sx, rect.y * sy, rect.width * sx, rect.height * sy, 0, 0, width, height);
+    const place = this.imagePlacement;
+    if (this.scene) { this.mediaCtx.filter = 'none'; this.mediaCtx.fillStyle = this.scene.color || '#ffffff'; this.mediaCtx.fillRect(0, 0, width, height); this.mediaCtx.filter = this.filterString(); }
+    this.mediaCtx.drawImage(src, rect.x * sx, rect.y * sy, rect.width * sx, rect.height * sy, place.x, place.y, place.width, place.height);
     this.mediaCtx.restore();
     this.paintRegions();
     this.canvas.requestRenderAll();
@@ -438,9 +461,9 @@ export class Studio extends EventTarget {
     const motion = obj._motion;
     if (motion) {
       props.left -= motion.x; props.top -= motion.y;
-      props.scaleX /= motion.scale; props.scaleY /= motion.scale;
-      if (motion.opacity > 0) props.opacity /= motion.opacity;
-      else props.opacity = obj.mfOverrides?.[this.media?.frames?.[this.frameIndex]?.id]?.opacity ?? obj.mfBase?.opacity ?? 1;
+      props.angle -= motion.angle || 0;
+      props.scaleX /= motion.scale; props.scaleY /= motion.scaleY ?? motion.scale;
+      props.opacity = motion.baseOpacity != null ? motion.baseOpacity + props.opacity - motion.renderedOpacity : motion.opacity > 0 ? props.opacity / motion.opacity : obj.mfBase?.opacity ?? 1;
     }
     if (!obj.mfBase) {
       obj.mfBase = props;
@@ -470,7 +493,8 @@ export class Studio extends EventTarget {
     this.applyingFrame = true;
     try {
       const id = this.media?.frames?.[this.frameIndex]?.id;
-      for (const obj of this.canvas.getObjects()) {
+      if (this.canvas.getActiveObject()?.type === 'activeselection') this.canvas.discardActiveObject();
+      for (const obj of this.walkObjects()) {
         if (obj.mfBase) obj.set({ ...obj.mfBase, ...obj.mfOverrides?.[id] });
         const inRange = (obj.mfStart == null || this.frameIndex >= obj.mfStart) && (obj.mfEnd == null || this.frameIndex <= obj.mfEnd);
         if (this.isAnimated && (!inRange || (obj.mfFrameIds && !obj.mfFrameIds.includes(id)))) obj.set('visible', false);
@@ -499,7 +523,7 @@ export class Studio extends EventTarget {
       const copy = { ...original, id: uid() };
       frames.splice(start + 1, 0, copy);
       if (this.frameAdjust[original.id]) this.frameAdjust[copy.id] = clone(this.frameAdjust[original.id]);
-      for (const obj of this.canvas.getObjects()) {
+      for (const obj of this.walkObjects()) {
         if (obj.mfFrameIds?.includes(original.id)) obj.mfFrameIds.push(copy.id);
         if (obj.mfOverrides?.[original.id]) obj.mfOverrides[copy.id] = clone(obj.mfOverrides[original.id]);
       }
@@ -513,7 +537,7 @@ export class Studio extends EventTarget {
     }
     // Frame range boundaries follow the frame IDs through reorders/trim.
     const order = this.media.frames;
-    for (const obj of this.canvas.getObjects()) {
+    for (const obj of this.walkObjects()) {
       if (obj.mfFrameIds) obj.mfFrameIds = obj.mfFrameIds.filter((id) => order.some((f) => f.id === id));
     }
     this.selectedFrameIds = new Set([...this.selectedFrameIds].filter((id) => order.some((f) => f.id === id)));
@@ -553,6 +577,7 @@ export class Studio extends EventTarget {
     this.pad = emptyPad();
     this.crop = null;
     this.collage = null;
+    this.scene = null;
     this.frameAdjust = {};
     this.selectedFrameIds = new Set();
     this.past = [];
@@ -585,18 +610,22 @@ export class Studio extends EventTarget {
 
   snapObject(obj) {
     if (!obj || !this.snapping) return;
-    const rect = obj.getBoundingRect();
-    const threshold = 7 / this.displayScale;
-    const guides = [];
-    if (Math.abs(rect.left + rect.width / 2 - this.canvas.width / 2) < threshold) {
-      obj.left += this.canvas.width / 2 - rect.left - rect.width / 2;
-      guides.push('x');
+    obj.setCoords();
+    const b = obj.getBoundingRect(), threshold = 7 / this.displayScale;
+    const xs = [0, this.canvas.width / 2, this.canvas.width], ys = [0, this.canvas.height / 2, this.canvas.height];
+    const selected = new Set(this.canvas.getActiveObjects());
+    for (const other of this.canvas.getObjects()) {
+      if (other === obj || selected.has(other) || !other.visible) continue;
+      const o = other.getBoundingRect(); xs.push(o.left, o.left + o.width / 2, o.left + o.width); ys.push(o.top, o.top + o.height / 2, o.top + o.height);
     }
-    if (Math.abs(rect.top + rect.height / 2 - this.canvas.height / 2) < threshold) {
-      obj.top += this.canvas.height / 2 - rect.top - rect.height / 2;
-      guides.push('y');
-    }
-    this.stageEl.dataset.guides = guides.join('');
+    const closest = (targets, anchors) => {
+      let best = null; for (const target of targets) for (const anchor of anchors) {
+        const delta = target - anchor; if (Math.abs(delta) < threshold && (!best || Math.abs(delta) < Math.abs(best.delta))) best = { delta, target };
+      } return best;
+    };
+    const x = closest(xs, [b.left, b.left + b.width / 2, b.left + b.width]), y = closest(ys, [b.top, b.top + b.height / 2, b.top + b.height]);
+    if (x) obj.left += x.delta; if (y) obj.top += y.delta; obj.setCoords();
+    this.snapGuides = { x: x?.target, y: y?.target }; this.emit('guides');
   }
 
   zoom(scale) {
@@ -857,6 +886,7 @@ export class Studio extends EventTarget {
       preset: this.filterPreset,
       crop: this.crop,
       collage: this.collage,
+      scene: this.scene,
       frameAdjust: this.frameAdjust,
       timeline: this.isAnimated ? this.media.frames.map(({ id, sourceIndex, delay }) => ({ id, sourceIndex, delay })) : null,
     });
@@ -885,13 +915,14 @@ export class Studio extends EventTarget {
       this.pad = { ...emptyPad(), ...state.pad, unit: state.pad?.unit || 'percent' };
       this.crop = state.crop || null;
       this.collage = state.collage || null;
+      this.scene = state.scene ? { width: clamp(Number(state.scene.width) || 32, 32, 1600), height: clamp(Number(state.scene.height) || 32, 32, 1600), mode: state.scene.mode === 'cover' ? 'cover' : 'fit', color: state.scene.color || '#ffffff' } : null;
       this.frameAdjust = state.frameAdjust || {};
       if (state.timeline && this.isAnimated) {
         if (!state.timeline.length || state.timeline.some((f) => !this.media.originalFrames[f.sourceIndex])) throw new Error('The project refers to a missing GIF frame.');
         this.media.frames = state.timeline.map((f) => ({ ...f, canvas: this.media.originalFrames[f.sourceIndex]?.canvas })).filter((f) => f.canvas);
         this.frameIndex = Math.min(this.frameIndex, this.media.frames.length - 1);
       }
-      for (const obj of objects) if (!obj.mfBase) obj.mfBase = this.objectProps(obj);
+      for (const obj of this.walkObjects()) if (!obj.mfBase) obj.mfBase = this.objectProps(obj);
       this.selectedFrameIds = new Set(this.isAnimated ? [this.media.frames[this.frameIndex].id] : []);
       this.applyFrame();
       this.filterPreset = state.preset || 'none';
@@ -940,7 +971,7 @@ export class Studio extends EventTarget {
     return {
       version: 3,
       name,
-      media: this.media ? { src: this.media.src, kind: this.media.kind, name: this.media.name, source: this.media.source } : null,
+      media: this.media ? { src: this.media.src, kind: this.media.kind, name: this.media.name, source: this.media.source, generatedFrames: this.media.generatedFrames || [] } : null,
       state: this.snapshot(),
     };
   }
@@ -948,6 +979,18 @@ export class Studio extends EventTarget {
   async fromProject(project) {
     if (project.media?.src) {
       await this.setMedia(project.media);
+      if (this.isAnimated && project.media.generatedFrames?.length) {
+        if (!Array.isArray(project.media.generatedFrames) || project.media.generatedFrames.length > 1200) throw new Error('Invalid generated GIF frames.');
+        let bytes = this.media.originalFrames.reduce((n, f) => n + f.canvas.width * f.canvas.height * 4, 0);
+        for (const src of project.media.generatedFrames) {
+          if (typeof src !== 'string' || !src.startsWith('data:image/png')) throw new Error('Invalid generated GIF frame source.');
+          const { img } = await loadImage(src); bytes += img.width * img.height * 4;
+          if (bytes > 192 * 1024 * 1024) throw new Error('Generated GIF frames exceed the memory budget.');
+          const canvas = document.createElement('canvas'); canvas.width = img.width; canvas.height = img.height; canvas.getContext('2d').drawImage(img, 0, 0);
+          this.media.originalFrames.push({ canvas });
+        }
+        this.media.generatedFrames = project.media.generatedFrames.slice();
+      }
     }
     if (project.state) await this.restore(project.state);
     this.past = [this.snapshot()];
@@ -1094,12 +1137,30 @@ export class Studio extends EventTarget {
     const t = Math.max(0, this.currentTime - begin);
     const span = Math.max(1, Math.min(Number(a.duration) || 500, finish - begin));
     const p = clamp(t / span, 0, 1), strength = clamp(Number(a.strength) || 20, 1, 100);
-    const m = { x: 0, y: 0, scale: 1, opacity: 1 };
+    const m = { x: 0, y: 0, scale: 1, opacity: 1, angle: 0, baseOpacity: obj.opacity };
     if (a.kind === 'fade') m.opacity = p;
     if (a.kind === 'slide') m.x = -strength * (1 - p);
     if (a.kind === 'shake') m.x = t < span ? Math.sin(t / 35) * strength * (1 - p) : 0;
     if (a.kind === 'zoom') m.scale = 1 + strength / 100 * p;
-    obj.set({ left: obj.left + m.x, top: obj.top + m.y, scaleX: obj.scaleX * m.scale, scaleY: obj.scaleY * m.scale, opacity: obj.opacity * m.opacity });
+    if (a.kind === 'poses') {
+      if (!a.start || !a.end) return;
+      const lastIndex = this.media.frames.findLastIndex((f) => !ids || ids.includes(f.id));
+      const lastDelay = this.media.frames[lastIndex]?.delay || 0;
+      const duration = a.duration > 0 ? a.duration : Math.max(1, finish - begin - lastDelay);
+      let progress = clamp(t / duration, 0, 1);
+      if (a.easing === 'ease-in') progress *= progress;
+      else if (a.easing === 'ease-out') progress = 1 - (1 - progress) ** 2;
+      else if (a.easing === 'smooth') progress = progress * progress * (3 - 2 * progress);
+      const lerp = (key) => a.start[key] + (a.end[key] - a.start[key]) * progress;
+      m.x = lerp('left') - obj.left; m.y = lerp('top') - obj.top; m.angle = lerp('angle') - obj.angle;
+      const sx = lerp('scaleX'), sy = lerp('scaleY'), opacity = lerp('opacity');
+      m.scale = sx / (obj.scaleX || 1); m.scaleY = sy / (obj.scaleY || 1);
+      m.renderedOpacity = opacity;
+      obj.set({ left: lerp('left'), top: lerp('top'), angle: lerp('angle'), scaleX: sx, scaleY: sy, opacity });
+    } else {
+      obj.set({ left: obj.left + m.x, top: obj.top + m.y, scaleX: obj.scaleX * m.scale, scaleY: obj.scaleY * m.scale, opacity: obj.opacity * m.opacity });
+      m.renderedOpacity = obj.opacity;
+    }
     obj._motion = m;
   }
 
@@ -1110,8 +1171,8 @@ export class Studio extends EventTarget {
 
   paintRegions() {
     const ctx = this.mediaCtx, pad = this.paddingPixels;
-    for (const obj of this.canvas.getObjects()) {
-      if (!obj.mfRegion || !obj.visible) continue;
+    for (const obj of this.walkObjects()) {
+      if (!obj.mfRegion || !this.effectiveVisible(obj)) continue;
       const b = obj.getBoundingRect();
       const x = clamp(Math.round(b.left - pad.left), 0, this.mediaCanvas.width), y = clamp(Math.round(b.top - pad.top), 0, this.mediaCanvas.height);
       const w = clamp(Math.round(b.left - pad.left + b.width), 0, this.mediaCanvas.width) - x;
@@ -1124,18 +1185,204 @@ export class Studio extends EventTarget {
       scratch.height = pixel ? Math.max(1, Math.ceil(h / strength)) : h;
       scratch.getContext('2d').drawImage(this.mediaCanvas, x, y, w, h, 0, 0, scratch.width, scratch.height);
       ctx.save(); ctx.beginPath(); ctx.rect(x, y, w, h); ctx.clip();
-      ctx.filter = pixel ? 'none' : `blur(${strength}px)`; ctx.imageSmoothingEnabled = !pixel;
-      ctx.drawImage(scratch, 0, 0, scratch.width, scratch.height, x, y, w, h); ctx.restore();
+      const filter = obj.mfRegion.kind === 'filter' ? `saturate(${obj.mfRegion.saturate ?? 0}%) contrast(${obj.mfRegion.contrast ?? 100}%)` : pixel ? 'none' : `blur(${strength}px)`;
+      if (obj.mfMask) {
+        const processed = document.createElement('canvas'); processed.width = this.mediaCanvas.width; processed.height = this.mediaCanvas.height;
+        const pc = processed.getContext('2d'); pc.filter = filter; pc.imageSmoothingEnabled = !pixel;
+        pc.drawImage(scratch, 0, 0, scratch.width, scratch.height, x, y, w, h); pc.filter = 'none';
+        const mask = document.createElement('canvas'); mask.width = processed.width; mask.height = processed.height;
+        const mc = mask.getContext('2d'); mc.translate(-pad.left, -pad.top);
+        if (obj.group) mc.transform(...obj.group.calcTransformMatrix());
+        const saved = { stroke: obj.stroke, fill: obj.fill, opacity: obj.opacity, strokeWidth: obj.strokeWidth, objectCaching: obj.objectCaching };
+        obj.set({ stroke: '#ffffff', fill: '', opacity: 1, strokeWidth: obj.mfMaskWidth || obj.strokeWidth, objectCaching: false });
+        try { obj.render(mc); } finally { obj.set(saved); }
+        pc.globalCompositeOperation = 'destination-in'; pc.drawImage(mask, 0, 0);
+        ctx.globalAlpha = this.effectiveOpacity(obj); ctx.drawImage(processed, 0, 0);
+      } else {
+        ctx.filter = filter; ctx.imageSmoothingEnabled = !pixel; ctx.globalAlpha = this.effectiveOpacity(obj);
+        ctx.drawImage(scratch, 0, 0, scratch.width, scratch.height, x, y, w, h);
+      }
+      ctx.restore();
     }
   }
 
   setDrawing(kind, color = '#ff2d2d', width = 8) {
-    this.pause(); this.canvas.isDrawingMode = kind !== 'none';
+    this.pause(); this.maskDrawing = null; this.canvas.isDrawingMode = kind !== 'none';
     if (kind !== 'none') {
       this.canvas.freeDrawingBrush = new fabric.PencilBrush(this.canvas);
       this.canvas.freeDrawingBrush.color = kind === 'highlight' ? color + '66' : color;
       this.canvas.freeDrawingBrush.width = clamp(Number(width) || 8, 1, 100);
     }
+  }
+
+  *walkObjects(objects = this.canvas.getObjects()) {
+    for (const obj of objects) { yield obj; if (obj.type === 'group') yield* this.walkObjects(obj.getObjects()); }
+  }
+
+  effectiveVisible(obj) {
+    for (let node = obj; node; node = node.group) if (!node.visible) return false;
+    return true;
+  }
+
+  effectiveOpacity(obj) {
+    let opacity = 1; for (let node = obj; node; node = node.group) opacity *= node.opacity;
+    return opacity;
+  }
+
+  get imagePlacement() {
+    const rect = this.contentRect, width = this.mediaCanvas.width, height = this.mediaCanvas.height;
+    if (!this.scene) return { x: 0, y: 0, width, height };
+    const scale = this.scene.mode === 'cover' ? Math.max(width / rect.width, height / rect.height) : Math.min(width / rect.width, height / rect.height);
+    const w = rect.width * scale, h = rect.height * scale;
+    return { x: (width - w) / 2, y: (height - h) / 2, width: w, height: h };
+  }
+
+  setScene(config, resizeLayers = true) {
+    if (!this.hasMedia) throw new Error('Load a picture first.');
+    this.pause(); this.canvas.discardActiveObject();
+    const previous = { width: this.canvas.width, height: this.canvas.height };
+    this.scene = config ? { width: clamp(Math.round(config.width), 32, 1600), height: clamp(Math.round(config.height), 32, 1600), mode: config.mode === 'cover' ? 'cover' : 'fit', color: config.color || '#ffffff' } : null;
+    this.layout(); if (resizeLayers) this.rescaleLayers(previous);
+    this.paintMedia(); this.fit(); this.commit(); this.emit('adjust'); this.emit('layers'); this.emit('media');
+  }
+
+  pose(obj = this.selected()) {
+    if (!obj) throw new Error('Select a layer first.');
+    return Object.fromEntries(['left', 'top', 'scaleX', 'scaleY', 'angle', 'opacity'].map((key) => [key, obj[key]]));
+  }
+
+  capturePose(role) {
+    if (!this.isAnimated) throw new Error('Poses need a GIF.');
+    const obj = this.selected(); if (!obj) throw new Error('Select a layer first.');
+    this.pause(); const current = this.pose(obj);
+    const config = obj.mfAnimation?.kind === 'poses' ? obj.mfAnimation : {};
+    obj.mfAnimation = { ...config, kind: 'poses', easing: config.easing || 'smooth', duration: config.duration || 0, [role]: current };
+    this.applyFrame(); this.commit(); this.emit('layers'); this.emit('frame');
+  }
+
+  setMaskDrawing(config, width = 24) {
+    this.setDrawing('pen', '#8b5cf6', width);
+    this.maskDrawing = { ...config }; this.canvas.freeDrawingBrush.color = '#8b5cf680';
+  }
+
+  loopFrames({ pingpong = false, hold = 0, transition = 0, delay = 40 } = {}) {
+    if (!this.isAnimated) throw new Error('Load a GIF first.');
+    this.pause();
+    const frames = this.media.frames, baseCount = frames.length;
+    transition = clamp(Math.round(transition), 0, 60); hold = clamp(Number(hold) || 0, 0, 5000); delay = clamp(Number(delay) || 40, 10, 1000);
+    const expected = baseCount + (pingpong ? Math.max(0, baseCount - 2) : 0) + transition + (frames.at(-1).delay + hold > 10000 ? 1 : 0);
+    if (this.media.originalFrames.length + transition > 1200) throw new Error('The project supports at most 1200 source frames.');
+    if (expected > 1200) throw new Error('The loop would exceed 1200 frames. Trim it first.');
+    const bytes = this.media.originalFrames.reduce((n, f) => n + f.canvas.width * f.canvas.height * 4, 0) + this.media.width * this.media.height * transition * 4;
+    if (bytes > 192 * 1024 * 1024) throw new Error('The transition exceeds the frame memory budget. Use fewer frames.');
+    const copy = (frame) => {
+      const f = { ...frame, id: uid() };
+      if (this.frameAdjust[frame.id]) this.frameAdjust[f.id] = clone(this.frameAdjust[frame.id]);
+      for (const obj of this.walkObjects()) {
+        if (obj.mfFrameIds?.includes(frame.id)) obj.mfFrameIds.push(f.id);
+        if (obj.mfOverrides?.[frame.id]) obj.mfOverrides[f.id] = clone(obj.mfOverrides[frame.id]);
+      }
+      return f;
+    };
+    const plan = frames.map((f) => ({ ...f }));
+    if (pingpong) plan.push(...frames.slice(1, -1).reverse().map(copy));
+    if (hold) {
+      const total = plan.at(-1).delay + hold;
+      plan.at(-1).delay = Math.min(10000, total);
+      if (total > 10000) { const extra = copy(plan.at(-1)); extra.delay = total - 10000; plan.push(extra); }
+    }
+    const last = plan.at(-1), first = plan[0];
+    this.media.generatedFrames ||= [];
+    for (let i = 1; i <= transition; i++) {
+      const c = document.createElement('canvas'); c.width = this.media.width; c.height = this.media.height;
+      const ctx = c.getContext('2d'), alpha = i / (transition + 1);
+      ctx.drawImage(last.canvas, 0, 0, c.width, c.height); ctx.globalAlpha = alpha; ctx.drawImage(first.canvas, 0, 0, c.width, c.height);
+      const f = copy(last); f.canvas = c; f.sourceIndex = this.media.originalFrames.length; f.delay = delay;
+      this.media.originalFrames.push({ canvas: c }); this.media.generatedFrames.push(c.toDataURL('image/png')); plan.push(f);
+    }
+    this.media.frames = plan; this.seek(0); this.commit(); this.emit('timeline');
+  }
+
+  arrange(objects, action) {
+    if (!objects.length) throw new Error('Select layers first.');
+    this.pause(); this.canvas.discardActiveObject();
+    const bounds = objects.map((obj) => ({ obj, b: obj.getBoundingRect() }));
+    const minX = Math.min(...bounds.map(({ b }) => b.left)), maxX = Math.max(...bounds.map(({ b }) => b.left + b.width));
+    const minY = Math.min(...bounds.map(({ b }) => b.top)), maxY = Math.max(...bounds.map(({ b }) => b.top + b.height));
+    const move = (obj, dx, dy) => { obj.set({ left: obj.left + dx, top: obj.top + dy }); this.rememberObject(obj, ['left', 'top']); obj.setCoords(); };
+    if (action.startsWith('distribute')) {
+      if (objects.length < 3) throw new Error('Distribution needs at least three layers.');
+      const horizontal = action === 'distribute-x', key = horizontal ? 'left' : 'top', dimension = horizontal ? 'width' : 'height';
+      bounds.sort((a, b) => a.b[key] - b.b[key]);
+      const begin = bounds[0].b[key], end = bounds.at(-1).b[key] + bounds.at(-1).b[dimension];
+      const gap = (end - begin - bounds.reduce((n, item) => n + item.b[dimension], 0)) / (bounds.length - 1);
+      let at = begin; for (const { obj, b } of bounds) { move(obj, horizontal ? at - b.left : 0, horizontal ? 0 : at - b.top); at += b[dimension] + gap; }
+    } else for (const { obj, b } of bounds) {
+      const dx = action === 'left' ? minX - b.left : action === 'right' ? maxX - b.left - b.width : action === 'center-x' ? (minX + maxX - b.width) / 2 - b.left : action === 'canvas-x' ? (this.canvas.width - b.width) / 2 - b.left : 0;
+      const dy = action === 'top' ? minY - b.top : action === 'bottom' ? maxY - b.top - b.height : action === 'center-y' ? (minY + maxY - b.height) / 2 - b.top : action === 'canvas-y' ? (this.canvas.height - b.height) / 2 - b.top : 0;
+      move(obj, dx, dy);
+    }
+    this.applyFrame(); this.paintMedia(); this.commit(); this.emit('layers');
+    if (objects.length === 1) this.canvas.setActiveObject(objects[0]);
+    this.emit('selection');
+  }
+
+  transformStoredState(obj, from, to) {
+    const base = clone(obj.mfBase || this.objectProps(obj));
+    const transform = (props) => {
+      obj.set({ ...base, ...props }); fabric.util.sendObjectToPlane(obj, from, to);
+      return this.objectProps(obj);
+    };
+    const nextBase = transform(base), overrides = {};
+    for (const [id, props] of Object.entries(obj.mfOverrides || {})) overrides[id] = transform(props);
+    if (obj.mfAnimation?.kind === 'poses') for (const role of ['start', 'end']) {
+      if (obj.mfAnimation[role]) { const value = transform(obj.mfAnimation[role]); obj.mfAnimation[role] = Object.fromEntries(Object.keys(obj.mfAnimation[role]).map((key) => [key, value[key]])); }
+    }
+    obj.mfBase = nextBase; obj.mfOverrides = overrides; obj._motion = null; obj.set(nextBase);
+  }
+
+  groupLayers(objects) {
+    if (objects.length < 2) throw new Error('Select at least two layers.');
+    const order = this.canvas.getObjects(), insertion = Math.min(...objects.map((obj) => order.indexOf(obj)));
+    objects = order.filter((obj) => objects.includes(obj));
+    this.pause(); this.canvas.discardActiveObject(); this.restoring = true;
+    let group;
+    try {
+      this.canvas.remove(...objects);
+      group = new fabric.Group(objects, { mfKind: 'group', mfName: 'Group', objectCaching: false, subTargetCheck: false, layoutManager: new fabric.LayoutManager(new fabric.FixedLayout()) });
+      const matrix = group.calcTransformMatrix();
+      for (const obj of objects) this.transformStoredState(obj, undefined, matrix);
+      group.mfBase = this.objectProps(group); this.canvas.insertAt(insertion, group); this.canvas.setActiveObject(group);
+    } finally { this.restoring = false; }
+    this.applyFrame(); this.paintMedia(); this.commit(); this.emit('layers'); this.emit('selection'); return group;
+  }
+
+  ungroupLayer(group = this.selected()) {
+    if (!group || group.type !== 'group') throw new Error('Select a group first.');
+    this.pause(); this.canvas.discardActiveObject();
+    const children = group.getObjects().slice(), states = new Map(children.map((obj) => [obj, []]));
+    const originalIndex = this.frameIndex, count = this.isAnimated ? this.media.frames.length : 1;
+    for (let i = 0; i < count; i++) {
+      this.frameIndex = i; this.applyFrame();
+      const matrix = group.calcTransformMatrix();
+      for (const obj of children) {
+        const saved = this.objectProps(obj); fabric.util.sendObjectToPlane(obj, matrix);
+        const world = this.objectProps(obj); world.opacity = obj.opacity * group.opacity; world.visible = obj.visible && group.visible;
+        if (obj.strokeUniform) world.strokeWidth = obj.strokeWidth * Math.sqrt(Math.abs(matrix[0] * matrix[3] - matrix[1] * matrix[2]));
+        states.get(obj).push(world); obj.set(saved); obj.setCoords();
+      }
+    }
+    const insertion = this.canvas.getObjects().indexOf(group); this.restoring = true;
+    try {
+      group.removeAll(); this.canvas.remove(group);
+      children.forEach((obj, index) => {
+        const poses = states.get(obj); obj.mfBase = poses[0]; obj.mfOverrides = {}; obj.mfAnimation = null; obj._motion = null;
+        delete obj.mfFrameIds; delete obj.mfStart; delete obj.mfEnd;
+        if (this.isAnimated) poses.forEach((pose, i) => { if (JSON.stringify(pose) !== JSON.stringify(poses[0])) obj.mfOverrides[this.media.frames[i].id] = pose; });
+        obj.set(obj.mfBase); this.canvas.insertAt(insertion + index, obj);
+      });
+    } finally { this.restoring = false; }
+    this.frameIndex = originalIndex; this.applyFrame(); this.paintMedia(); this.commit(); this.emit('layers'); this.emit('selection');
   }
 
   destroy() {
@@ -1145,4 +1392,4 @@ export class Studio extends EventTarget {
   }
 }
 
-export { uid };
+export { uid, EXTRA_PROPS };
