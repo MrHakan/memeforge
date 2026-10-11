@@ -34,6 +34,17 @@
   </div>
 
   <div class="topbar-actions">
+    <div class="menu-wrap">
+      <button class="btn btn-quiet" id="project-menu-btn" aria-expanded="false">Project</button>
+      <div class="menu" id="project-menu" hidden>
+        <button class="menu-item" id="project-new">New project</button>
+        <button class="menu-item" id="project-rename">Rename project</button>
+        <button class="menu-item" id="project-download">Download editable project</button>
+        <button class="menu-item" id="project-open">Open project file</button>
+        <button class="menu-item" id="template-save">Save as personal template</button>
+      </div>
+      <input type="file" id="project-file" accept=".memeforge,.json" hidden>
+    </div>
     <div class="btn-group" role="group" aria-label="History">
       <button class="icon-btn" id="undo-btn" title="Undo (Ctrl+Z)" aria-label="Undo" disabled>
         <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8h11a5 5 0 0 1 0 10H8"/><path d="M6 4L2 8l4 4"/></svg>
@@ -129,14 +140,19 @@
         <button class="chip is-on" data-source="all">All</button>
         <button class="chip" data-source="imgflip">Imgflip</button>
         <button class="chip" data-source="memegen">Memegen</button>
-        <button class="chip" data-source="local">Yours</button>
+        <button class="chip" data-source="local">Yours</button><button class="chip" data-source="favorites">Favorites</button><button class="chip" data-source="recent">Recent</button>
       </div>
       <div class="drop-zone" id="drop-zone">
-        <input type="file" id="file-input" accept="image/*" hidden>
-        <strong>Drop an image or GIF</strong>
+        <input type="file" id="file-input" accept="image/*,video/mp4,video/webm,video/quicktime" hidden>
+        <strong>Drop an image, GIF or video</strong>
         <span>or <button class="link-btn" id="browse-btn">browse</button> · paste with Ctrl+V</span>
       </div>
+      <form class="url-import" id="url-import">
+        <input type="url" id="media-url" placeholder="Paste an image or GIF link" aria-label="Image or GIF URL" required>
+        <button class="btn btn-quiet" id="url-import-btn">Import</button>
+      </form>
       <div class="grid" id="template-grid" role="list"></div>
+      <button class="btn btn-block btn-quiet" id="templates-more" hidden>Load more templates</button>
       <p class="panel-note" id="template-note"></p>
     </div>
 
@@ -235,19 +251,20 @@
         <button class="preset" data-filter="cursed">Cursed</button>
       </div>
       <div class="sliders" id="adjust-sliders"></div>
-      <h3 class="sub-title">Caption bar</h3>
+      <h3 class="sub-title">Spacing &amp; Padding</h3>
       <div class="field">
-        <label for="pad-top">Height</label>
+        <label for="pad-top">Top (px)</label>
         <div class="row">
-          <input type="range" id="pad-top" min="0" max="60" value="0" step="1">
-          <output class="mono" id="pad-top-out">0%</output>
+          <input type="range" id="pad-top" min="0" max="200" value="0" step="1">
+          <output class="mono" id="pad-top-out">0px</output>
         </div>
       </div>
+      <div id="padding-sides"></div>
       <div class="field">
         <label for="pad-color">Colour</label>
         <div class="row">
           <input type="color" id="pad-color" value="#ffffff">
-          <span class="hint">The white box on top, straight out of 2011.</span>
+          <span class="hint">Space around the image, on every GIF frame.</span>
         </div>
       </div>
     </div>
@@ -275,6 +292,17 @@
   </section>
 
   <section class="stage-col">
+    <div class="work-tools" aria-label="Canvas tools">
+      <button class="btn btn-quiet" id="canvas-fit">Fit</button>
+      <button class="icon-btn" id="zoom-out" aria-label="Zoom out">−</button>
+      <output id="zoom-value" class="mono">100%</output>
+      <button class="icon-btn" id="zoom-in" aria-label="Zoom in">+</button>
+      <button class="btn btn-quiet" id="pan-toggle" aria-pressed="false">Pan</button>
+      <button class="btn btn-quiet" id="crop-open">Crop</button><button class="btn btn-quiet" id="crop-draw" aria-pressed="false">Draw crop</button>
+      <button class="btn btn-quiet" id="collage-open">Collage</button>
+      <label class="snap-toggle"><input type="checkbox" id="snap-toggle" checked> Snap</label>
+      <span id="save-state" class="mono" role="status">Ready</span>
+    </div>
     <div class="stage" id="stage">
       <div class="bench" id="bench">
         <div class="marks" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
@@ -289,6 +317,24 @@
       </div>
     </div>
 
+    <section id="timeline" class="timeline" aria-label="GIF editor" hidden>
+      <div class="timeline-head">
+        <div class="seg" aria-label="GIF edit mode"><button class="seg-btn" id="mode-frame" aria-pressed="false">Frame</button><button class="seg-btn is-on" id="mode-video" aria-pressed="true">Video</button></div>
+        <button class="icon-btn" id="frame-prev" aria-label="Previous frame">◀</button><button class="btn btn-quiet" id="timeline-play">Play</button><button class="icon-btn" id="frame-next" aria-label="Next frame">▶</button>
+        <output class="mono" id="timeline-time"></output><span class="mono" id="timeline-info"></span>
+      </div>
+      <p class="panel-hint" id="mode-hint"></p>
+      <input type="range" id="timeline-seek" min="0" max="1" step="1" value="0" aria-label="Timeline position">
+      <div id="frame-strip" class="frame-strip" role="group" aria-label="GIF frames"></div>
+      <div class="timeline-controls">
+        <label>Frame <input type="number" id="frame-number" min="1" value="1"></label>
+        <label>Delay (ms) <input type="number" id="frame-delay" min="10" max="10000" step="1" value="100"></label>
+        <label>FPS <input type="number" id="gif-fps" min="1" max="100" step="0.01" value="24"></label><button class="btn btn-quiet" id="fps-apply">Set FPS</button>
+        <label>From frame <input type="number" id="trim-start" min="1" value="1"></label><label>To frame <input type="number" id="trim-end" min="1" value="1"></label><label class="video-time-range">In (s) <input type="number" id="time-start" min="0" value="0" step="0.01"></label><label class="video-time-range">Out (s) <input type="number" id="time-end" min="0.01" value="1" step="0.01"></label><button class="btn btn-quiet video-time-range" id="time-trim">Trim time</button>
+        <button class="btn btn-quiet" id="frames-trim">Trim</button><button class="btn btn-quiet" id="frames-delay">Set range delay</button>
+        <button class="btn btn-quiet" id="frame-copy">Duplicate</button><button class="btn btn-quiet" id="frame-delete">Delete</button><button class="btn btn-quiet" id="frames-reverse">Reverse</button><button class="btn btn-quiet" id="frame-save">Frame PNG</button>
+      </div>
+    </section>
     <div class="readout mono" id="readout">
       <span class="readout-item"><b id="ro-size">—</b> px</span>
       <span class="readout-sep"></span>
@@ -306,6 +352,7 @@
   </section>
 
   <aside class="inspector" id="inspector" aria-label="Selection">
+    <button class="btn btn-quiet mobile-sheet-close" id="inspector-close">Done</button>
     <div class="inspector-empty" id="inspector-empty">
       <header class="panel-head"><h2 class="panel-title">Nothing selected</h2></header>
       <p class="panel-hint">Pick a layer to style it. Double-click text on the canvas to retype it.</p>
@@ -322,6 +369,9 @@
   </aside>
 </main>
 
+<input type="file" id="collage-panel-file" accept="image/*" hidden>
+<div id="context-menu" class="context-menu" role="menu" hidden></div>
+<dialog class="dialog" id="editor-dialog"><form id="editor-form"><div id="editor-dialog-body"></div><div class="dialog-actions"><button class="btn btn-quiet" type="button" id="editor-cancel">Cancel</button><button class="btn btn-primary" id="editor-apply">Apply</button></div></form></dialog>
 <div class="toasts" id="toasts" role="status" aria-live="polite"></div>
 
 <dialog class="dialog" id="shortcuts-dialog">

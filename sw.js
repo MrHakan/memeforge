@@ -1,7 +1,7 @@
 // Offline shell. Local files are served from the cache first and refreshed in
 // the background; template and font requests always go to the network.
 
-const CACHE = 'memeforge-v2';
+const CACHE = 'memeforge-v4';
 
 const SHELL = [
   './',
@@ -9,6 +9,9 @@ const SHELL = [
   './app.webmanifest',
   './css/app.css',
   './js/main.js',
+  './js/workbench.js',
+  './js/advanced.js',
+  './js/flashbang.js',
   './js/studio.js',
   './js/panels.js',
   './js/inspector.js',

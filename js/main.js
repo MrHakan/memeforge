@@ -5,9 +5,11 @@ import { Studio } from './studio.js';
 import { Panels } from './panels.js';
 import { Inspector } from './inspector.js';
 import { loadFont, addCustomFont } from './fonts.js';
+import { Advanced } from './advanced.js';
+import { Workbench } from './workbench.js';
 import { flashbang } from './flashbang.js';
 import {
-  getSetting, setSetting, addRecent, saveProject, saveAutosave, getAutosave, getFontFiles,
+  getSetting, setSetting, addRecent, saveProject, saveAutosave, getAutosave, getFontFiles, clearAutosave,
 } from './store.js';
 
 const studio = new Studio($('#c'), $('#stage'));
@@ -50,19 +52,19 @@ async function loadMedia({ src, name = 'Untitled', source = 'upload', kind, keep
     if (studio.tainted) {
       toast('That host blocks downloads of its pictures. Editing works, saving may not.', 'bad');
     }
-    if (studio.media.truncated) {
-      toast('Long GIF — only the first 160 frames were kept.', '');
-    }
     // "Yours" only means pictures you brought, not library templates.
-    if (!['imgflip', 'memegen'].includes(source)) addRecent({ url: src, name, at: Date.now() });
+    if (!['imgflip', 'memegen'].includes(source)) addRecent({ url: studio.media.src, name, at: Date.now() });
+    return true;
   } catch (err) {
     toast(err.message || 'That picture would not load.', 'bad');
+    return false;
   } finally {
     delete bench.dataset.busy;
   }
 }
 
 async function loadFile(file) {
+  if (file.type.startsWith('video/') || /\.(mp4|webm|mov)$/i.test(file.name)) return advanced.videoDialog(file);
   if (!file.type.startsWith('image/')) {
     toast('Pick an image or a GIF.', 'bad');
     return;
@@ -144,6 +146,9 @@ function updateReadout() {
 
   $('#export-gif-item').disabled = !animated;
   $('#export-gif-item').querySelector('em').textContent = animated ? `${media.frames.length} frames` : 'load a GIF first';
+  $('#empty-state').hidden = !!media;
+  $('#bench').classList.toggle('is-empty', !media);
+  $('#canvas-hold').classList.toggle('is-empty', !media);
 }
 
 for (const evt of ['view', 'media', 'layers', 'play', 'change']) {
@@ -217,7 +222,7 @@ async function runExport(kind) {
     return;
   }
   try {
-    if (kind === 'gif') return await exportGif();
+    if (kind === 'gif') return advanced.optimizeDialog(exportScale);
 
     if (kind === 'clipboard') {
       const blob = await currentBlob('image/png');
@@ -249,25 +254,6 @@ async function runExport(kind) {
   }
 }
 
-async function exportGif() {
-  const overlay = $('#progress');
-  const bar = $('#progress-bar');
-  overlay.hidden = false;
-  bar.style.width = '0%';
-  try {
-    const blob = await studio.toGifBlob({
-      scale: Math.min(exportScale, 2),
-      onProgress: (p) => { bar.style.width = `${Math.round(p * 100)}%`; },
-    });
-    downloadBlob(blob, filename('gif'));
-    toast('Animated GIF saved.', 'good');
-  } catch (err) {
-    toast(err.message || 'The GIF would not encode.', 'bad');
-  } finally {
-    overlay.hidden = true;
-  }
-}
-
 /* ---------------- projects ---------------- */
 
 async function thumbnail() {
@@ -295,33 +281,55 @@ async function save() {
     updated: Date.now(),
     thumb: await thumbnail(),
     ...studio.toProject(projectTitle.value),
+    fontFiles: await getFontFiles(),
   };
-  await saveProject(project);
-  toast('Saved to your gallery.', 'good');
+  try {
+    await saveProject(project);
+    $('#save-state').textContent = 'Saved to gallery';
+    toast('Saved to your gallery.', 'good');
+  } catch {
+    $('#save-state').textContent = 'Save failed';
+    toast('Storage is full or unavailable. Download a project backup.', 'bad');
+    return;
+  }
   if (panels.current === 'gallery') panels.renderGallery();
 }
 
 $('#save-btn').addEventListener('click', save);
 
 async function openProject(project) {
-  projectId = project.id;
-  projectTitle.value = project.name;
+  const previous = studio.hasMedia ? studio.toProject(projectTitle.value) : null;
+  const previousId = projectId;
+  const previousTitle = projectTitle.value;
+  autosave.cancel();
   try {
+    for (const entry of project.fontFiles || []) await addCustomFont(new File([entry.blob], entry.name));
     await studio.fromProject(project);
-    $('#empty-state').hidden = true;
-    $('#bench').classList.remove('is-empty');
+    projectId = project.id || uid();
+    projectTitle.value = project.name || 'Untitled meme';
     await ensureFonts();
     updateReadout();
-    toast(`Opened “${project.name}”.`, 'good');
-  } catch {
-    toast('That saved meme could not be reopened.', 'bad');
+    autosave();
+    toast(`Opened “${projectTitle.value}”.`, 'good');
+    return true;
+  } catch (error) {
+    autosave.cancel();
+    try { if (previous) await studio.fromProject(previous); else studio.reset(); } catch { studio.reset(); }
+    projectId = previousId;
+    projectTitle.value = previousTitle;
+    updateReadout();
+    toast(error.message || 'That saved meme could not be reopened.', 'bad');
+    return false;
   }
 }
 
 function newProject() {
   projectId = uid();
   projectTitle.value = 'Untitled meme';
-  studio.clearLayers();
+  autosave.cancel();
+  studio.reset();
+  clearAutosave();
+  $('#save-state').textContent = 'Ready';
   panels.show('templates');
   toast('Fresh bench. Pick a template.', '');
 }
@@ -337,12 +345,14 @@ async function ensureFonts() {
 
 const autosave = debounce(async () => {
   if (!studio.hasMedia) return;
-  await saveAutosave({
-    id: projectId,
-    name: projectTitle.value,
-    at: Date.now(),
-    project: studio.toProject(projectTitle.value),
-  });
+  const id = projectId;
+  $('#save-state').textContent = 'Saving…';
+  try {
+    await saveAutosave({ id, name: projectTitle.value, at: Date.now(), project: studio.toProject(projectTitle.value) });
+    if (id === projectId) $('#save-state').textContent = 'Saved on device';
+  } catch {
+    if (id === projectId) $('#save-state').textContent = 'Save failed — download a backup';
+  }
 }, 1200);
 
 studio.addEventListener('change', autosave);
@@ -401,6 +411,7 @@ document.addEventListener('keydown', (e) => {
     e.preventDefault();
     const step = e.shiftKey ? 10 : 1;
     obj.set({ left: obj.left + nudges[e.key][0] * step, top: obj.top + nudges[e.key][1] * step });
+    studio.rememberObject(obj);
     obj.setCoords();
     studio.canvas.requestRenderAll();
     debounceCommit();
@@ -420,7 +431,7 @@ document.addEventListener('paste', async (e) => {
     return;
   }
   const text = e.clipboardData?.getData('text');
-  if (text && /^https?:\/\/\S+\.(png|jpe?g|gif|webp)/i.test(text.trim())) {
+  if (text && /^https?:\/\/\S+$/i.test(text.trim())) {
     e.preventDefault();
     loadMedia({ src: text.trim(), name: 'Pasted link', source: 'link' });
   }
@@ -483,5 +494,8 @@ if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
   });
 }
 
+const workbench = new Workbench(studio, panels, { loadMedia, openProject, newProject, projectTitle, runExport });
+const advanced = new Advanced(studio, workbench);
+
 // Handy for poking at the studio from the console.
-Object.assign(window, { studio, panels, inspector, loadMedia, el });
+Object.assign(window, { studio, panels, inspector, workbench, advanced, loadMedia, el });

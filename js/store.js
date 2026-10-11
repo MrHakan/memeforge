@@ -60,7 +60,7 @@ export const deleteProject = (id) => del(PROJECT_PREFIX + id);
 
 /* ---- work in progress ---- */
 
-export const saveAutosave = (snapshot) => set(AUTOSAVE_KEY, snapshot).catch(() => {});
+export const saveAutosave = (snapshot) => set(AUTOSAVE_KEY, snapshot);
 export const getAutosave = () => get(AUTOSAVE_KEY).catch(() => null);
 export const clearAutosave = () => del(AUTOSAVE_KEY).catch(() => {});
 
@@ -91,3 +91,16 @@ export async function addFontFile(file) {
 }
 
 export const getFontFiles = async () => (await get(FONTFILES_KEY).catch(() => null)) || [];
+
+/* ---- personal library ---- */
+export const getLibrary = async (kind) => (await get('mf.library.' + kind).catch(() => null)) || [];
+export async function putLibrary(kind, item, limit = 200) {
+  const list = await getLibrary(kind);
+  await set('mf.library.' + kind, [item, ...list.filter((entry) => entry.id !== item.id)].slice(0, limit));
+}
+export async function toggleFavorite(item) {
+  const list = await getLibrary('favorites');
+  const exists = list.some((entry) => entry.id === item.id);
+  await set('mf.library.favorites', exists ? list.filter((entry) => entry.id !== item.id) : [item, ...list]);
+  return !exists;
+}

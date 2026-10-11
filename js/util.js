@@ -84,10 +84,11 @@ const PROXIES = [
 function tryImage(src, withCors) {
   return new Promise((resolve, reject) => {
     const img = new Image();
+    const timer = setTimeout(() => { img.src = ''; reject(new Error('Image request timed out.')); }, 12000);
     if (withCors) img.crossOrigin = 'anonymous';
     img.decoding = 'async';
-    img.onload = () => resolve(img);
-    img.onerror = () => reject(new Error(`could not load ${src.slice(0, 80)}`));
+    img.onload = () => { clearTimeout(timer); resolve(img); };
+    img.onerror = () => { clearTimeout(timer); reject(new Error(`could not load ${src.slice(0, 80)}`)); };
     img.src = src;
   });
 }
@@ -118,7 +119,7 @@ export async function fetchBuffer(url) {
   let lastError;
   for (const candidate of attempts) {
     try {
-      const res = await fetch(candidate, { mode: 'cors' });
+      const res = await fetch(candidate, { mode: 'cors', signal: AbortSignal.timeout(12000) });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       return await res.arrayBuffer();
     } catch (err) {

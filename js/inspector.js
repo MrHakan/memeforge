@@ -93,6 +93,20 @@ export class Inspector {
       ]),
     );
 
+    this.host.append(el('div', { class: 'stack-row' }, [
+      el('button', { class: 'btn btn-quiet', text: 'Center ↔', onClick: () => this.studio.alignSelected('x') }),
+      el('button', { class: 'btn btn-quiet', text: 'Center ↕', onClick: () => this.studio.alignSelected('y') }),
+    ]));
+    if (this.studio.isAnimated) {
+      const frames = this.studio.media.frames;
+      const indexes = obj.mfFrameIds ? frames.map((frame, index) => obj.mfFrameIds.includes(frame.id) ? index : -1).filter((index) => index >= 0) : [0, frames.length - 1];
+      const start = el('input', { type: 'number', min: 1, max: frames.length, value: (indexes[0] ?? this.studio.frameIndex) + 1, 'aria-label': 'Layer start frame' });
+      const end = el('input', { type: 'number', min: 1, max: frames.length, value: (indexes.at(-1) ?? this.studio.frameIndex) + 1, 'aria-label': 'Layer end frame' });
+      this.host.append(field('Visible frame range', [start, end, el('button', { class: 'btn btn-quiet', text: 'Set', onClick: () => this.studio.setLayerRange(+start.value - 1, +end.value - 1) })]));
+      const startTime = el('input', { type: 'number', min: 0, max: this.studio.duration / 1000, step: 0.01, value: frames.slice(0, indexes[0] || 0).reduce((sum, f) => sum + f.delay, 0) / 1000, 'aria-label': 'Layer start seconds' });
+      const endTime = el('input', { type: 'number', min: 0.01, max: this.studio.duration / 1000, step: 0.01, value: frames.slice(0, (indexes.at(-1) ?? frames.length - 1) + 1).reduce((sum, f) => sum + f.delay, 0) / 1000, 'aria-label': 'Layer end seconds' });
+      this.host.append(field('Visible time range (s)', [startTime, endTime, el('button', { class: 'btn btn-quiet', text: 'Set', onClick: () => this.studio.setLayerRange(this.studio.frameAtTime(+startTime.value * 1000), this.studio.frameAtTime(+endTime.value * 1000 - 0.001)) })]));
+    }
     if (isText) this.renderText(obj);
     else this.renderObject(obj);
 
@@ -142,6 +156,7 @@ export class Inspector {
 
     this.host.append(
       el('div', { class: 'field' }, [el('label', { text: 'Words' }), area]),
+      el('button', { class: 'btn btn-quiet', text: 'Fit text to image', onClick: () => studio.fitText() }),
       el('h3', { class: 'sub-title', text: 'Type' }),
       fontBtn,
       el('div', { class: 'preset-row' }, Object.keys(TEXT_PRESETS).map((name) => el('button', {

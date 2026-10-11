@@ -92,6 +92,8 @@ export function searchTemplates(query, source = 'all') {
   let list = templates;
   if (source !== 'all' && source !== 'local') list = list.filter((t) => t.source === source);
   if (!query?.trim()) return list;
+  const aliases = { 'iki düğme': 'two buttons', 'dikkati dağılan': 'distracted boyfriend', 'erkek arkadaş': 'distracted boyfriend', 'drake': 'drake', 'kedi': 'cat', 'köpek': 'dog' };
+  query = aliases[query.trim().toLocaleLowerCase('tr')] || query;
   const hits = fuse ? fuse.search(query.trim()).map((h) => h.item) : [];
   return source === 'all' ? hits : hits.filter((t) => t.source === source);
 }

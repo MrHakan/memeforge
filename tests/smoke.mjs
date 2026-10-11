@@ -142,6 +142,10 @@ const run = async () => {
   await page.waitForFunction(() => window.studio?.hasMedia, null, { timeout: 15000 });
   check('template loads onto the bench', await page.evaluate(() => window.studio.canvas.width === 640));
 
+  await page.waitForFunction(() => window.studio.canvas.getObjects().length === 3);
+  check('recognized template receives positioned editable captions', true);
+  await page.evaluate(() => window.studio.clearLayers());
+
   // classic meme text
   await page.locator('.rail-btn[data-panel="text"]').click();
   await page.locator('#add-classic').click();
@@ -267,7 +271,7 @@ const run = async () => {
   await page.locator('#export-btn').click();
   const [gifDownload] = await Promise.all([
     page.waitForEvent('download', { timeout: 60000 }),
-    page.locator('[data-export="gif"]').click(),
+    (async () => { await page.locator('[data-export="gif"]').click(); await page.locator('#output-merge').uncheck(); await page.locator('#output-generate').click(); await page.locator('#editor-apply').click({ timeout: 60000 }); })(),
   ]);
   const gifOut = join(shots, 'export.gif');
   await gifDownload.saveAs(gifOut);

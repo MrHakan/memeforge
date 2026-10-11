@@ -2,15 +2,17 @@
   "name": "memeforge",
   "version": "2.0.0",
   "private": true,
-  "description": "A meme studio that runs entirely in the browser — templates, fonts, layers, filters and animated GIF export.",
+  "description": "A meme studio that runs entirely in the browser \u2014 templates, fonts, layers, filters and animated GIF export.",
   "type": "module",
   "scripts": {
     "dev": "npx --yes http-server -p 8099 -c-1 .",
     "fixtures": "node tests/make-fixtures.mjs",
-    "test": "node tests/make-fixtures.mjs && node tests/smoke.mjs && node tests/offline.mjs && node tests/flashbang.mjs",
+    "test": "node tests/make-fixtures.mjs && node tests/smoke.mjs && node tests/offline.mjs && node tests/flashbang.mjs && node tests/editor.mjs && node tests/advanced.mjs",
     "test:offline": "node tests/offline.mjs",
     "test:flashbang": "node tests/flashbang.mjs",
-    "test:subpath": "node tests/subpath.mjs"
+    "test:subpath": "node tests/subpath.mjs",
+    "test:editor": "node tests/make-fixtures.mjs && node tests/editor.mjs",
+    "test:advanced": "node tests/make-fixtures.mjs && node tests/advanced.mjs"
   },
   "devDependencies": {
     "playwright": "^1.56.1"

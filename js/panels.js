@@ -5,7 +5,7 @@ import { $, $$, el, debounce, toast, timeAgo, fileToDataUrl } from './util.js';
 import { loadTemplates, searchTemplates, randomTemplate, localTemplates, loadTrending, sourceNotes, allTemplates } from './sources.js';
 import { loadCatalogue, getFonts, loadFont, isLoaded, addCustomFont, fontSource } from './fonts.js';
 import { DEFAULT_ADJUST } from './studio.js';
-import { addFontFile, listProjects, deleteProject } from './store.js';
+import { addFontFile, listProjects, deleteProject, getLibrary, putLibrary, toggleFavorite } from './store.js';
 
 const STICKERS = [
   ['😂', 'joy laugh cry'], ['💀', 'skull dead'], ['🔥', 'fire lit hot'], ['💯', 'hundred perfect'],
@@ -38,6 +38,7 @@ export class Panels {
     this.templateSource = 'all';
     this.fontCategory = 'all';
     this.fontQuery = '';
+    this.templateLimit = 60;
 
     this.wireRail();
     this.wireTemplates();
@@ -68,6 +69,8 @@ export class Panels {
     if (name === 'trending' && !this.trendingLoaded) this.loadTrending();
     if (name === 'gallery') this.renderGallery();
     if (name === 'layers') this.renderLayers();
+    if (name === 'templates') this.renderTemplates();
+    if (window.matchMedia('(max-width: 940px)').matches) $('#inspector').classList.remove('is-open');
     this.hooks.onPanel?.(name);
   }
 
@@ -95,11 +98,13 @@ export class Panels {
 
     $$('#template-chips .chip').forEach((chip) => chip.addEventListener('click', () => {
       $$('#template-chips .chip').forEach((c) => c.classList.toggle('is-on', c === chip));
+      this.templateLimit = 60;
       this.templateSource = chip.dataset.source;
       this.renderTemplates();
     }));
 
-    search.addEventListener('input', debounce(() => this.renderTemplates(), 160));
+    search.addEventListener('input', debounce(() => { this.templateLimit = 60; this.renderTemplates(); }, 160));
+    $('#templates-more').addEventListener('click', () => { this.templateLimit += 60; this.renderTemplates(); });
 
     $('#random-template').addEventListener('click', () => {
       const pick = randomTemplate();
@@ -131,21 +136,29 @@ export class Panels {
   }
 
   async renderTemplates() {
+    const renderId = this.templateRenderId = (this.templateRenderId || 0) + 1;
     const grid = $('#template-grid');
     const query = $('#template-search').value;
-    let items = this.templateSource === 'local'
-      ? await localTemplates()
-      : searchTemplates(query, this.templateSource);
-
-    if (this.templateSource === 'local' && query.trim()) {
+    let items;
+    if (this.templateSource === 'local') items = [...await getLibrary('personal'), ...await localTemplates()];
+    else if (['favorites', 'recent'].includes(this.templateSource)) items = await getLibrary(this.templateSource);
+    else items = searchTemplates(query, this.templateSource);
+    if (['local', 'favorites', 'recent'].includes(this.templateSource) && query.trim()) {
       const needle = query.trim().toLowerCase();
       items = items.filter((t) => t.name.toLowerCase().includes(needle));
     }
+    const favorites = await getLibrary('favorites');
+    if (renderId !== this.templateRenderId) return;
+    $('#templates-more').hidden = items.length <= this.templateLimit;
 
     if (!items.length) {
       let message = 'Nothing matched. Try a shorter word, or upload your own picture.';
       if (this.templateSource === 'local') {
         message = 'Pictures you upload or paste show up here.';
+      } else if (this.templateSource === 'favorites') {
+        message = 'Star a template to keep it here.';
+      } else if (this.templateSource === 'recent') {
+        message = 'Your recently used templates appear here.';
       } else if (!allTemplates().length) {
         message = 'The template libraries are unreachable. Drop your own picture above and carry on.';
       }
@@ -153,19 +166,28 @@ export class Panels {
       return;
     }
 
-    grid.replaceChildren(...items.slice(0, 240).map((item) => {
-      const tile = el('button', { class: 'tile', role: 'listitem', title: item.name, type: 'button' }, [
+    grid.replaceChildren(...items.slice(0, this.templateLimit).map((item) => {
+      const tile = el('div', { class: 'tile', role: 'listitem', title: item.name, tabindex: 0 }, [
         el('img', { src: item.url, alt: item.name, loading: 'lazy' }),
         el('figcaption', { text: item.name }),
       ]);
       if (item.source === 'local') tile.append(el('span', { class: 'badge', text: 'yours' }));
+      const favorite = favorites.some((entry) => entry.id === item.id);
+      tile.append(el('button', { class: 'favorite-btn', type: 'button', text: favorite ? '★' : '☆',
+        'aria-label': `Favorite ${item.name}`, 'aria-pressed': String(favorite),
+        onClick: async (e) => { e.stopPropagation(); await toggleFavorite(item); this.renderTemplates(); },
+      }));
       tile.addEventListener('click', () => this.use(item));
+      tile.addEventListener('keydown', (e) => { if (e.target === tile && ['Enter', ' '].includes(e.key)) { e.preventDefault(); this.use(item); } });
       return tile;
     }));
   }
 
   use(item) {
-    this.hooks.onUseMedia?.({ src: item.url, name: item.name, source: item.source });
+    Promise.resolve(item.project ? this.hooks.onOpenProject?.({ ...item.project, fontFiles: item.fontFiles, id: undefined }) : this.hooks.onUseMedia?.({ src: item.url, name: item.name, source: item.source })).then((ok) => {
+      if (ok && !item.project && !this.studio.canvas.getObjects().length) this.studio.addTemplateText?.(item.name);
+      if (ok) putLibrary('recent', item, 30).catch(() => {});
+    });
   }
 
   /* ---------------- trending ---------------- */
@@ -344,8 +366,7 @@ export class Panels {
           const value = parseFloat(e.target.value);
           out.textContent = `${value}${unit}`;
           if (key === 'crunch') return; // crunch re-encodes, so wait for release
-          this.studio.adjust[key] = value;
-          this.studio.paintMedia();
+          this.studio.previewAdjust({ [key]: value });
         },
         onChange: (e) => this.studio.setAdjust({ [key]: parseFloat(e.target.value) }),
       });
@@ -357,28 +378,54 @@ export class Panels {
     }));
 
     $$('#filter-presets .preset').forEach((btn) => btn.addEventListener('click', () => {
-      $$('#filter-presets .preset').forEach((b) => b.classList.toggle('is-on', b === btn));
+      const pad = this.studio.paddingPixels;
+    for (const key of ['top', 'right', 'bottom', 'left']) {
+      $(`#pad-${key}`).max = Math.max(200, pad[key]);
+      $(`#pad-${key}`).value = pad[key];
+      $(`#pad-${key}-out`).textContent = `${pad[key]}px`;
+    }
+    $('#pad-color').value = this.studio.pad.color;
+    $$('#filter-presets .preset').forEach((b) => b.classList.toggle('is-on', b === btn));
       this.studio.applyPreset(btn.dataset.filter);
     }));
 
     $('#adjust-reset').addEventListener('click', () => {
-      $$('#filter-presets .preset').forEach((b) => b.classList.toggle('is-on', b.dataset.filter === 'none'));
+      const pad = this.studio.paddingPixels;
+    for (const key of ['top', 'right', 'bottom', 'left']) {
+      $(`#pad-${key}`).max = Math.max(200, pad[key]);
+      $(`#pad-${key}`).value = pad[key];
+      $(`#pad-${key}-out`).textContent = `${pad[key]}px`;
+    }
+    $('#pad-color').value = this.studio.pad.color;
+    $$('#filter-presets .preset').forEach((b) => b.classList.toggle('is-on', b.dataset.filter === 'none'));
       this.studio.applyPreset('none');
-      this.studio.setPad({ top: 0 });
+      this.studio.setPad({ top: 0, right: 0, bottom: 0, left: 0, unit: 'px' });
+      this.studio.setCrop(null);
       $('#pad-top').value = 0;
-      $('#pad-top-out').textContent = '0%';
+      $('#pad-top-out').textContent = '0px';
     });
 
     const padTop = $('#pad-top');
-    padTop.addEventListener('input', (e) => { $('#pad-top-out').textContent = `${e.target.value}%`; });
-    padTop.addEventListener('change', (e) => this.studio.setPad({ top: parseInt(e.target.value, 10) }));
+    padTop.addEventListener('input', (e) => { $('#pad-top-out').textContent = `${e.target.value}px`; });
+    padTop.addEventListener('change', (e) => this.studio.setPad({ top: parseInt(e.target.value, 10), unit: 'px' }));
+    for (const key of ['right', 'bottom', 'left']) {
+      $('#padding-sides').append(el('div', { class: 'field' }, [
+        el('label', { for: `pad-${key}`, text: key[0].toUpperCase() + key.slice(1) + ' (px)' }),
+        el('div', { class: 'row' }, [
+          el('input', { id: `pad-${key}`, type: 'range', min: 0, max: 200, value: 0,
+            onInput: (e) => { $(`#pad-${key}-out`).textContent = `${e.target.value}px`; },
+            onChange: (e) => this.studio.setPad({ [key]: Number(e.target.value), unit: 'px' }),
+          }), el('output', { id: `pad-${key}-out`, class: 'mono', text: '0px' }),
+        ]),
+      ]));
+    }
     $('#pad-color').addEventListener('change', (e) => this.studio.setPad({ color: e.target.value }));
   }
 
   syncAdjust() {
     if (!this.adjustInputs) return;
     for (const [key, { input, out, unit }] of Object.entries(this.adjustInputs)) {
-      const value = this.studio.adjust[key];
+      const value = this.studio.effectiveAdjust[key];
       input.value = value;
       out.textContent = `${value}${unit}`;
       if (key === 'crunch') {
@@ -387,6 +434,13 @@ export class Panels {
         input.title = off ? 'Crunch only works on still pictures.' : '';
       }
     }
+    const pad = this.studio.paddingPixels;
+    for (const key of ['top', 'right', 'bottom', 'left']) {
+      $(`#pad-${key}`).max = Math.max(200, pad[key]);
+      $(`#pad-${key}`).value = pad[key];
+      $(`#pad-${key}-out`).textContent = `${pad[key]}px`;
+    }
+    $('#pad-color').value = this.studio.pad.color;
     $$('#filter-presets .preset').forEach((b) => b.classList.toggle('is-on', b.dataset.filter === this.studio.filterPreset));
   }
 
@@ -434,6 +488,7 @@ export class Panels {
               e.stopPropagation();
               obj.set('visible', obj.visible === false);
               this.studio.canvas.requestRenderAll();
+              this.studio.rememberObject(obj);
               this.studio.commit();
               this.renderLayers();
             },
@@ -443,7 +498,8 @@ export class Panels {
             text: '🗑',
             onClick: (e) => {
               e.stopPropagation();
-              this.studio.canvas.remove(obj);
+              this.studio.canvas.setActiveObject(obj);
+              this.studio.removeSelected();
               this.studio.emit('layers');
             },
           }),
